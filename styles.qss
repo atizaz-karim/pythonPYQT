@@ -1,0 +1,151 @@
+/* ======================================= */
+/* GLOBAL APPLICATION STYLES */
+/* ======================================= */
+QMainWindow {
+    background-color: #F8F8F8; /* Main window background */
+}
+
+QWidget { 
+    font-family: Arial; 
+    font-size: 10pt;
+    color: #333333; /* Default text color (Dark Gray) */
+}
+
+/* --------------------------------------- */
+/* HEADINGS AND TITLES */
+/* --------------------------------------- */
+/* Targets all QLabels with the object name "PanelTitle" (e.g., "Data Loading and Management") */
+QLabel#PanelTitle {
+    font-size: 20px; 
+    font-weight: bold; 
+    color: #1F497D; /* Dark Blue Header Color */
+    margin-bottom: 15px;
+    padding-top: 10px;
+}
+
+
+/* --------------------------------------- */
+/* SIDEBAR NAVIGATION */
+/* --------------------------------------- */
+/* Sidebar Container */
+#SidebarWidget { 
+    background-color: #EBEFF4; /* Secondary background color */
+    border-right: 1px solid #DDDDDD;
+}
+
+/* Sidebar Buttons */
+#SidebarWidget QPushButton { 
+    background-color: #3498DB; /* Accent Color */
+    color: white; 
+    padding: 12px; 
+    border-radius: 5px; 
+    margin: 5px 10px;
+}
+
+#SidebarWidget QPushButton:hover { 
+    background-color: #6CB4EE; /* Light Blue Hover */
+}
+
+
+/* --------------------------------------- */
+/* DATA MANAGEMENT PANEL (CRUD) */
+/* --------------------------------------- */
+/* CRUD Group Box */
+#DbOpsGroup {
+    background-color: #EBEFF4; 
+    padding: 10px; 
+    border-radius: 5px;
+}
+QLineEdit#PatientIDInput {
+    background-color: #FFFFFF; /* White */
+}
+
+/* Insert Button (Success Green) */
+QPushButton#InsertButton {
+    background-color: #2ECC71; 
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 8px;
+    border-color: #2ECC71;
+}
+QPushButton#InsertButton:hover {
+    background-color: #58D683;
+}
+
+/* Delete Button (Error Red) */
+QPushButton#DeleteButton {
+    background-color: #E74C3C; 
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 8px;
+    border-color: #E74C3C;
+}
+QPushButton#DeleteButton:hover {
+    background-color: #EC7063;
+}
+
+/* --------------------------------------- */
+/* QTABLEWIDGET (Loaded Data View) */
+/* --------------------------------------- */
+QTableWidget { 
+    background-color: white; 
+    color: #333333; /* Data cell font color */
+    gridline-color: #DDDDDD; 
+    border: 1px solid #BBBBBB;
+    selection-background-color: #A9CCE3; /* Light blue selection */
+}
+
+QHeaderView::section {
+    color: #1F497D; /* Header text color */
+    background-color: #EBEFF4;
+    font-weight: bold;
+    padding: 5px;
+    border: 1px solid #DDDDDD;
+}
+
+
+/* --------------------------------------- */
+/* ANALYSIS PANEL GROUPS */
+/* --------------------------------------- */
+#FilterGroup, #CorrGroup {
+    background-color: #F0F3F6; /* Slightly darker than main background for separation */
+    padding: 10px; 
+    border-radius: 5px;
+    border: 1px solid #DDDDDD;
+}
+
+/* --------------------------------------- */
+/* IMAGE PROCESSING PANEL */
+/* --------------------------------------- */
+/* Original Image Border */
+QLabel#ImageDisplayLabelOriginal {
+    border: 3px solid #3498DB; /* Accent Color Border */
+    background-color: #DDDDDD;
+}
+
+/* Processed Image Border */
+QLabel#ImageDisplayLabelProcessed {
+    border: 3px solid #E74C3C; /* Error Red Border */
+    background-color: #DDDDDD;
+}
+
+/* QSlider Handle Color */
+QSlider::handle:horizontal {
+    background: #3498DB;
+    border: 1px solid #3498DB;
+    width: 15px;
+    margin: -2px 0; /* center the handle vertically */
+    border-radius: 7px;
+}
+
+QSlider::groove:horizontal {
+    border: 1px solid #CCCCCC;
+    height: 5px;
+    background: #EEEEEE;
+    margin: 2px 0;
+    border-radius: 3px;
+}
