@@ -4,11 +4,18 @@ import numpy as np
 
 class DatabaseManager:
     def __init__(self, db_name='health_metrics.db'):
+        """Initializes connection and enables WAL mode for high performance."""
         self.conn = sqlite3.connect(db_name)
+        
+        # PERFORMANCE TWEAK: Enable Write-Ahead Logging.
+        # This allows background threads to write while you read/delete from the UI.
+        self.conn.execute('PRAGMA journal_mode=WAL;')
+        
         self.cursor = self.conn.cursor()
-        print(f"Successfully connected to {db_name} and created a cursor object.")
+        print(f"Successfully connected to {db_name} in WAL mode.")
 
     def create_tables(self):
+        """Ensures the required tables exist in the database."""
         create_patient_metrics_table = '''
         CREATE TABLE IF NOT EXISTS patient_health_metrics (
             patient_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,7 +32,6 @@ class DatabaseManager:
             Heart_Disease_Status TEXT
         );
         '''
-
         create_medical_image_table = '''
         CREATE TABLE IF NOT EXISTS medical_image_metadata (
             image_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,17 +44,13 @@ class DatabaseManager:
         self.cursor.execute(create_patient_metrics_table)
         self.cursor.execute(create_medical_image_table)
         self.conn.commit()
-        print("Tables 'patient_health_metrics' and 'medical_image_metadata' created successfully.")
+        print("Tables ensured successfully.")
 
     def insert_patient_data(self, df_source):
-        selected_columns = [
-            'Age', 'Gender', 'Blood Pressure', 'Cholesterol Level', 'BMI', 'Sleep Hours',
-            'Triglyceride Level', 'Fasting Blood Sugar', 'CRP Level', 'Homocysteine Level', 'Heart Disease Status'
-        ]
-
-        patient_data_df = df_source[selected_columns].copy()
-
-        patient_data_df.rename(columns={
+        """Cleans data and performs bulk insertion. Handles both Space and Underscore names."""
+        
+        # Mapping of CSV names (with spaces) to SQL names (with underscores)
+        column_mapping = {
             'Blood Pressure': 'Blood_Pressure',
             'Cholesterol Level': 'Cholesterol_Level',
             'Sleep Hours': 'Sleep_Hours',
@@ -57,30 +59,49 @@ class DatabaseManager:
             'CRP Level': 'CRP_Level',
             'Homocysteine Level': 'Homocysteine_Level',
             'Heart Disease Status': 'Heart_Disease_Status'
-        }, inplace=True)
+        }
 
-        for col in ['Age', 'Blood_Pressure', 'Cholesterol_Level', 'BMI', 'Sleep_Hours',
-                    'Triglyceride_Level', 'Fasting_Blood_Sugar', 'CRP_Level', 'Homocysteine_Level']:
-            if patient_data_df[col].isnull().any():
-                median_val = patient_data_df[col].median()
-                patient_data_df[col] = patient_data_df[col].fillna(median_val)
+        # Create a copy to avoid modifying the original GUI dataframe
+        df = df_source.copy()
 
-        for col in ['Gender', 'Heart_Disease_Status']:
-            if patient_data_df[col].isnull().any():
-                mode_val = patient_data_df[col].mode()[0]
-                patient_data_df[col] = patient_data_df[col].fillna(mode_val)
+        # FLEXIBLE COLUMN CHECK:
+        # If the input has spaces (CSV), rename them to underscores (SQL).
+        # If it already has underscores (Retrieved from DB), it skips renaming.
+        for space_name, underscore_name in column_mapping.items():
+            if space_name in df.columns:
+                df.rename(columns={space_name: underscore_name}, inplace=True)
 
-        patient_data_for_db = [tuple(row) for row in patient_data_df.itertuples(index=False)]
+        # The exact columns the database table expects
+        required_sql_columns = [
+            'Age', 'Gender', 'Blood_Pressure', 'Cholesterol_Level', 'BMI', 
+            'Sleep_Hours', 'Triglyceride_Level', 'Fasting_Blood_Sugar', 
+            'CRP_Level', 'Homocysteine_Level', 'Heart_Disease_Status'
+        ]
 
-        columns_str = ', '.join(patient_data_df.columns)
-        placeholders = ', '.join(['?' for _ in patient_data_df.columns])
+        # Final check to ensure we only try to insert what the DB can handle
+        available_cols = [c for c in required_sql_columns if c in df.columns]
+        df = df[available_cols]
+
+        # Handling Missing Values (Imputation)
+        for col in df.select_dtypes(include=[np.number]).columns:
+            df[col] = df[col].fillna(df[col].median())
+        for col in df.select_dtypes(include=['object']).columns:
+            if not df[col].mode().empty:
+                df[col] = df[col].fillna(df[col].mode()[0])
+
+        # Batch Insertion
+        data_to_insert = [tuple(row) for row in df.itertuples(index=False)]
+        columns_str = ', '.join(df.columns)
+        placeholders = ', '.join(['?' for _ in df.columns])
         insert_sql = f"INSERT INTO patient_health_metrics ({columns_str}) VALUES ({placeholders})"
 
-        self.cursor.executemany(insert_sql, patient_data_for_db)
+        self.cursor.executemany(insert_sql, data_to_insert)
         self.conn.commit()
-        print(f"Successfully inserted {len(patient_data_for_db)} rows into patient_health_metrics.")
+        print(f"Batch inserted {len(data_to_insert)} rows.")
 
-    def get_patient_data(self, min_age=None, max_age=None, gender=None, heart_disease_status=None):
+    def get_patient_data(self, min_age=None, max_age=None, gender=None, 
+                         heart_disease_status=None, limit=50, offset=0):
+        """Fetches a specific 'page' of data using LIMIT and OFFSET."""
         base_query = "SELECT * FROM patient_health_metrics"
         conditions = []
         parameters = []
@@ -98,19 +119,28 @@ class DatabaseManager:
             conditions.append("Heart_Disease_Status = ?")
             parameters.append(heart_disease_status)
 
+        query = base_query
         if conditions:
-            query = base_query + " WHERE " + " AND ".join(conditions)
-        else:
-            query = base_query
+            query += " WHERE " + " AND ".join(conditions)
+
+        # PAGINATION: Prevents UI lag
+        query += " LIMIT ? OFFSET ?"
+        parameters.extend([limit, offset])
 
         self.cursor.execute(query, tuple(parameters))
         data = self.cursor.fetchall()
-
         column_names = [description[0] for description in self.cursor.description]
 
         return pd.DataFrame(data, columns=column_names)
 
+    def get_total_count(self):
+        """Returns total records for UI pagination math."""
+        self.cursor.execute("SELECT COUNT(*) FROM patient_health_metrics")
+        result = self.cursor.fetchone()
+        return result[0] if result else 0
+
     def update_patient_data(self, patient_id, **kwargs):
+        """Updates specific fields for a patient record."""
         update_fields = []
         parameters = []
 
@@ -119,31 +149,22 @@ class DatabaseManager:
             update_fields.append(f"{db_column_name} = ?")
             parameters.append(value)
 
-        if not update_fields:
-            print("No update fields provided.")
-            return
+        if not update_fields: return
 
         parameters.append(patient_id)
         set_clause = ", ".join(update_fields)
         update_sql = f"UPDATE patient_health_metrics SET {set_clause} WHERE patient_id = ?"
 
         self.cursor.execute(update_sql, tuple(parameters))
-        if self.cursor.rowcount > 0:
-            self.conn.commit()
-            print(f"Successfully updated patient_id {patient_id}.")
-        else:
-            print(f"No record found for patient_id {patient_id} or no changes made.")
+        self.conn.commit()
 
     def delete_patient_data(self, patient_id):
+        """Deletes a patient record by ID."""
         delete_sql = "DELETE FROM patient_health_metrics WHERE patient_id = ?"
-
         self.cursor.execute(delete_sql, (patient_id,))
-        if self.cursor.rowcount > 0:
-            self.conn.commit()
-            print(f"Successfully deleted patient_id {patient_id}.")
-        else:
-            print(f"No record found for patient_id {patient_id} or no changes made.")
+        self.conn.commit()
 
     def close_connection(self):
+        """Closes the database safely."""
         self.conn.close()
         print("Database connection closed.")

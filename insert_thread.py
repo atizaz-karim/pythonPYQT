@@ -13,11 +13,9 @@ class InsertDataThread(QThread):
     def run(self):
         self.progress.emit("Inserting data into database...")
         try:
-            # Create a new SQLite connection in this thread
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
-            # Select and rename columns to match database
             selected_columns = [
                 'Age', 'Gender', 'Blood Pressure', 'Cholesterol Level', 'BMI', 'Sleep Hours',
                 'Triglyceride Level', 'Fasting Blood Sugar', 'CRP Level', 'Homocysteine Level', 'Heart Disease Status'
@@ -34,21 +32,17 @@ class InsertDataThread(QThread):
                 'Heart Disease Status': 'Heart_Disease_Status'
             }, inplace=True)
 
-            # Fill missing numerical columns with median
             for col in ['Age', 'Blood_Pressure', 'Cholesterol_Level', 'BMI', 'Sleep_Hours',
                         'Triglyceride_Level', 'Fasting_Blood_Sugar', 'CRP_Level', 'Homocysteine_Level']:
                 if df[col].isnull().any():
                     df[col].fillna(df[col].median(), inplace=True)
 
-            # Fill missing categorical columns with mode
             for col in ['Gender', 'Heart_Disease_Status']:
                 if df[col].isnull().any():
                     df[col].fillna(df[col].mode()[0], inplace=True)
 
-            # Prepare data for insertion
             data_to_insert = [tuple(row) for row in df.itertuples(index=False)]
 
-            # Build SQL dynamically
             columns_str = ', '.join(df.columns)
             placeholders = ', '.join(['?' for _ in df.columns])
             insert_sql = f"INSERT INTO patient_health_metrics ({columns_str}) VALUES ({placeholders})"
