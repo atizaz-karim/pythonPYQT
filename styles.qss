@@ -60,32 +60,132 @@ QLineEdit#PatientIDInput {
     background-color: #FFFFFF; /* White */
 }
 
-/* Insert Button (Success Green) */
+/* Pop-up dialogs */
+QMessageBox, QInputDialog {
+    background-color: white;
+    color: black;
+}
+QMessageBox QLabel, QInputDialog QLabel {
+    color: black;
+}
+QMessageBox QPushButton, QInputDialog QPushButton {
+    background-color: white;
+    color: black;
+    border: 1px solid #bfbfbf;
+    padding: 4px 10px;
+}
+
+/* Inputs (including those inside popups) */
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QTextEdit, QPlainTextEdit {
+    background-color: transparent;
+    color: black;
+    border: 1px solid #bfbfbf;
+    padding: 2px 4px;
+}
+QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled,
+QTextEdit:disabled, QPlainTextEdit:disabled {
+    color: #555555;
+}
+
+/* Dropdown list view for combo boxes */
+QComboBox QAbstractItemView {
+    background-color: white;
+    color: black;
+    border: 1px solid #bfbfbf;
+}
+QComboBox QAbstractItemView::item {
+    background-color: white;
+    color: black;
+    padding: 4px 8px;
+}
+QComboBox QAbstractItemView::item:selected {
+    background-color: #e6f2ff; /* light blue highlight */
+    color: black;
+}
+
+/* Data Loading Buttons - Match Sidebar Style */
+QPushButton#LoadCSVButton, QPushButton#RefreshTableButton {
+    background-color: #3498DB; /* Accent Color - matches sidebar */
+    color: white;
+    padding: 8px 16px;
+    border-radius: 5px;
+    margin: 5px 5px 5px 0px;
+    font-weight: bold;
+    min-width: 120px;
+}
+QPushButton#LoadCSVButton:hover, QPushButton#RefreshTableButton:hover {
+    background-color: #6CB4EE; /* Light Blue Hover - matches sidebar */
+}
+
+/* Insert Button - Add border radius */
 QPushButton#InsertButton {
     background-color: #2ECC71; 
     color: white;
     font-weight: bold;
     border-style: solid; 
     border-width: 1px;
-    padding: 8px 8px;
+    padding: 8px 16px;
     border-color: #2ECC71;
+    border-radius: 5px;
 }
 QPushButton#InsertButton:hover {
     background-color: #58D683;
 }
 
-/* Delete Button (Error Red) */
+/* Delete Button - Add border radius */
 QPushButton#DeleteButton {
     background-color: #E74C3C; 
     color: white;
     font-weight: bold;
     border-style: solid; 
     border-width: 1px;
-    padding: 8px 8px;
+    padding: 8px 16px;
     border-color: #E74C3C;
+    border-radius: 5px;
 }
 QPushButton#DeleteButton:hover {
     background-color: #EC7063;
+}
+
+/* Update Button - Reduced size with color, matching Delete button height */
+QPushButton#UpdateButton {
+    background-color: #F39C12; /* Orange color */
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 10px; /* Match Delete button height (8px vertical), reduced width */
+    border-color: #F39C12;
+    border-radius: 5px;
+    min-width: 80px;
+}
+QPushButton#UpdateButton:hover {
+    background-color: #F7B731;
+}
+
+/* Previous/Next Page Buttons - Circular with arrows */
+QPushButton#PreviousPageButton, QPushButton#NextPageButton {
+    background-color: white;
+    color: black;
+    border-style: solid; 
+    border-width: 1px;
+    border-color: #CCCCCC;
+    border-radius: 20px; /* Perfect circle - half of width/height */
+    padding: 0px;
+    min-width: 40px;
+    max-width: 40px;
+    min-height: 40px;
+    max-height: 40px;
+    font-size: 16px;
+}
+QPushButton#PreviousPageButton:hover, QPushButton#NextPageButton:hover {
+    background-color: #6CB4EE; /* Light gray hover */
+    border-color: #999999;
+}
+QPushButton#PreviousPageButton:disabled, QPushButton#NextPageButton:disabled {
+    background-color: #F5F5F5; /* Light gray when disabled */
+    border-color: #DDDDDD;
+    color: #999999;
 }
 
 /* --------------------------------------- */
@@ -118,6 +218,67 @@ QHeaderView::section {
     border: 1px solid #DDDDDD;
 }
 
+/* Health Data Analysis Tab Buttons */
+/* Apply & Plot Button */
+QPushButton#ApplyFilterButton {
+    background-color: #3498DB; /* Blue color */
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 16px;
+    border-color: #3498DB;
+    border-radius: 5px;
+}
+QPushButton#ApplyFilterButton:hover {
+    background-color: #6CB4EE; /* Light blue hover */
+}
+
+/* Reset Filter Button */
+QPushButton#ResetFilterButton {
+    background-color: #95A5A6; /* Gray color */
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 16px;
+    border-color: #95A5A6;
+    border-radius: 5px;
+}
+QPushButton#ResetFilterButton:hover {
+    background-color: #BDC3C7; /* Light gray hover */
+}
+
+/* Scatter Plot Button */
+QPushButton#ScatterPlotButton {
+    background-color: #16A085; /* Teal color */
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 16px;
+    border-color: #16A085;
+    border-radius: 5px;
+}
+QPushButton#ScatterPlotButton:hover {
+    background-color: #48C9B0; /* Light teal hover */
+}
+
+/* Heatmap Button */
+QPushButton#HeatmapButton {
+    background-color: #E67E22; /* Orange color */
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 16px;
+    border-color: #E67E22;
+    border-radius: 5px;
+}
+QPushButton#HeatmapButton:hover {
+    background-color: #F39C12; /* Light orange hover */
+}
+
 /* --------------------------------------- */
 /* IMAGE PROCESSING PANEL */
 /* --------------------------------------- */
@@ -148,4 +309,156 @@ QSlider::groove:horizontal {
     background: #EEEEEE;
     margin: 2px 0;
     border-radius: 3px;
+}
+
+/* Medical Image Processing Tab Buttons */
+/* Grayscale Conversion Button */
+QPushButton#GrayscaleButton {
+    background-color: #3498DB; /* Blue color */
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 16px;
+    border-color: #3498DB;
+    border-radius: 5px;
+}
+QPushButton#GrayscaleButton:hover {
+    background-color: #6CB4EE; /* Light blue hover */
+}
+
+/* Apply Blur Button */
+QPushButton#ApplyBlurButton {
+    background-color: #3498DB; /* Blue color */
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 16px;
+    border-color: #3498DB;
+    border-radius: 5px;
+}
+QPushButton#ApplyBlurButton:hover {
+    background-color: #6CB4EE; /* Light blue hover */
+}
+
+/* Canny Edge Detection Button */
+QPushButton#CannyEdgeButton {
+    background-color: #3498DB; /* Blue color */
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 16px;
+    border-color: #3498DB;
+    border-radius: 5px;
+}
+QPushButton#CannyEdgeButton:hover {
+    background-color: #6CB4EE; /* Light blue hover */
+}
+
+/* Apply Threshold Button */
+QPushButton#ApplyThresholdButton {
+    background-color: #3498DB; /* Blue color */
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 16px;
+    border-color: #3498DB;
+    border-radius: 5px;
+}
+QPushButton#ApplyThresholdButton:hover {
+    background-color: #6CB4EE; /* Light blue hover */
+}
+
+/* Gaussian Blur Dropdown - Add Border */
+QComboBox#BlurDropdown {
+    border: 1px solid rgb(0, 0, 0); /* Black border */
+    border-radius: 4px;
+    padding: 4px 8px;
+    background-color: white;
+}
+QComboBox#BlurDropdown:hover {
+    border-color: rgb(0, 0, 0); /* Black on hover */
+}
+QComboBox#BlurDropdown:focus {
+    border-color: rgb(0, 0, 0); /* Black when focused */
+}
+
+/* --------------------------------------- */
+/* SPECTRUM ANALYSIS TAB */
+/* --------------------------------------- */
+/* Load & Display Signal Button */
+QPushButton#LoadDisplaySignalButton {
+    background-color: #3498DB; /* Blue color */
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 16px;
+    border-color: #3498DB;
+    border-radius: 5px;
+}
+QPushButton#LoadDisplaySignalButton:hover {
+    background-color: #6CB4EE; /* Light blue hover */
+}
+
+/* Biomedical Signal Dropdown - Add Border */
+QComboBox#BiomedicalSignalDropdown {
+    border: 1px solid rgb(0, 0, 0); /* Blue border */
+    border-radius: 4px;
+    padding: 4px 8px;
+    background-color: white;
+}
+QComboBox#BiomedicalSignalDropdown:hover {
+    border-color:rgb(0, 0, 0); /* Light blue on hover */
+}
+QComboBox#BiomedicalSignalDropdown:focus {
+    border-color:rgb(0, 0, 0); /* Darker blue when focused */
+}
+
+/* Compute FFT Spectrum Button */
+QPushButton#ComputeFFTButton {
+    background-color: #3498DB; /* Red color */
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 16px;
+    border-color: #3498DB;
+    border-radius: 5px;
+}
+QPushButton#ComputeFFTButton:hover {
+    background-color: #6CB4EE; /* Light red hover */
+}
+
+/* Apply Zoom Button */
+QPushButton#ApplyZoomButton {
+    background-color: #3498DB; /* Teal color */
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 16px;
+    border-color: #3498DB;
+    border-radius: 5px;
+}
+QPushButton#ApplyZoomButton:hover {
+    background-color: #6CB4EE; /* Light teal hover */
+}
+
+/* Reset View Button */
+QPushButton#ResetViewButton {
+    background-color: #E74C3C; /* Red color */
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 16px;
+    border-color: #E74C3C;
+    border-radius: 5px;
+}
+QPushButton#ResetViewButton:hover {
+    background-color: #EC7063; /* Light red hover */
 }

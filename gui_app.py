@@ -1,9 +1,7 @@
-
-
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QComboBox, QTabWidget, QFileDialog, QTableWidget, 
-    QTableWidgetItem, QScrollArea, QSlider, QLineEdit, QCheckBox, 
+    QPushButton, QComboBox, QTabWidget, QFileDialog, QTableWidget,
+    QTableWidgetItem, QScrollArea, QSlider, QLineEdit, QCheckBox,
     QSpinBox, QMessageBox, QGridLayout, QInputDialog, QDoubleSpinBox,
     QFrame, QGroupBox
 )
@@ -17,7 +15,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
-import cv2 
+import cv2
 import os
 
 class DatabaseManager:
@@ -37,72 +35,21 @@ class HealthcareApp(QMainWindow):
         self.rows_per_page = 50
         self.filtered_df = df.copy()
         self.cv_image = None
-        self.processed_cv_image = None  
-
-        self.filtered_df = df.copy()
-        self.cv_image = None
         self.processed_cv_image = None
-        
+
         self.setWindowTitle("Healthcare Data and Medical Image Processing Tool")
         self.setGeometry(50, 50, 1400, 900)
-
-        # Global white theme for pop-ups and transparent inputs with black text
-        self.setStyleSheet("""
-            /* Pop-up dialogs */
-            QMessageBox, QInputDialog {
-                background-color: white;
-                color: black;
-            }
-            QMessageBox QLabel, QInputDialog QLabel {
-                color: black;
-            }
-            QMessageBox QPushButton, QInputDialog QPushButton {
-                background-color: white;
-                color: black;
-                border: 1px solid #bfbfbf;
-                padding: 4px 10px;
-            }
-
-            /* Inputs (including those inside popups) */
-            QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QTextEdit, QPlainTextEdit {
-                background-color: transparent;
-                color: black;
-                border: 1px solid #bfbfbf;
-                padding: 2px 4px;
-            }
-            QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled,
-            QTextEdit:disabled, QPlainTextEdit:disabled {
-                color: #555555;
-            }
-
-            /* Dropdown list view for combo boxes */
-            QComboBox QAbstractItemView {
-                background-color: white;
-                color: black;
-                border: 1px solid #bfbfbf;
-            }
-            QComboBox QAbstractItemView::item {
-                background-color: white;
-                color: black;
-                padding: 4px 8px;
-            }
-            QComboBox QAbstractItemView::item:selected {
-                background-color: #e6f2ff; /* light blue highlight */
-                color: black;
-            }
-        """)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QHBoxLayout(central_widget)
 
         self.sidebar = QWidget()
-        self.sidebar.setObjectName("SidebarWidget") 
+        self.sidebar.setObjectName("SidebarWidget")
         self.sidebar.setFixedWidth(250)
         self.sidebar_layout = QVBoxLayout(self.sidebar)
-        
 
-        self.stacked_widget = QTabWidget() 
+        self.stacked_widget = QTabWidget()
         self.stacked_widget.tabBar().setVisible(False) 
 
         # Add Tabs (Panels)
@@ -111,36 +58,36 @@ class HealthcareApp(QMainWindow):
         self.stacked_widget.addTab(self.create_spectrum_panel(), "Spectrum Analysis")
         self.stacked_widget.addTab(self.create_image_processing_panel(), "Medical Image Processing")
         self.stacked_widget.addTab(self.create_data_visualization_panel(), "Data Visualization")
-        
-        tab_names = ["Patient Data Management", "Health Data Analysis", "Spectrum Analysis", 
+
+        tab_names = ["Patient Data Management", "Health Data Analysis", "Spectrum Analysis",
                      "Image Processing", "Data Visualization"]
-                     
+
         for i, name in enumerate(tab_names):
             btn = QPushButton(name)
             btn.setObjectName(f"SidebarBtn_{i}") # SET OBJECT NAME FOR QSS TARGETING
             btn.setToolTip(f"Switch to the {name} section.")
             btn.clicked.connect(lambda checked, index=i: self.stacked_widget.setCurrentIndex(index))
             self.sidebar_layout.addWidget(btn)
-        
-        self.sidebar_layout.addStretch(1) 
+
+        self.sidebar_layout.addStretch(1)
 
         # Add components to the main layout
         main_layout.addWidget(self.sidebar)
         main_layout.addWidget(self.stacked_widget)
-        
+
         self._setup_menu_bar()
 
         if self.db_manager:
-            self.db_retrieve_data() 
+            self.db_retrieve_data()
         else:
             self.populate_table(self.df.head(self.rows_per_page))
 
     # --- Utility Methods ---
     def _setup_menu_bar(self):
         menu_bar = self.menuBar()
-        
+
         file_menu = menu_bar.addMenu("File")
-        
+
         load_data_action = file_menu.addAction("Load Data (Ctrl+L)")
         load_data_action.setShortcut("Ctrl+L")
         load_data_action.triggered.connect(lambda: self.stacked_widget.setCurrentIndex(0)) 
@@ -191,17 +138,21 @@ class HealthcareApp(QMainWindow):
         # Data Source Section (Loaders)
         source_group = QWidget()
         source_layout = QHBoxLayout(source_group)
+        source_layout.setAlignment(Qt.AlignLeft)
         
         self.load_csv_btn = QPushButton("Load CSV File (Local)")
+        self.load_csv_btn.setObjectName("LoadCSVButton")
         self.load_csv_btn.setToolTip("Browse and load data from a local CSV file.")
         self.load_csv_btn.clicked.connect(self.load_csv)
 
         self.db_connect_btn = QPushButton("Refresh Table")
+        self.db_connect_btn.setObjectName("RefreshTableButton")
         self.db_connect_btn.setToolTip("Retrieves all patient records from the database and loads them into the table.")
         self.db_connect_btn.clicked.connect(self.db_retrieve_data) 
         
         source_layout.addWidget(self.load_csv_btn)
         source_layout.addWidget(self.db_connect_btn)
+        source_layout.addStretch()
         layout.addWidget(source_group)
         
         # Database Operations (CRUD)
@@ -227,6 +178,7 @@ class HealthcareApp(QMainWindow):
         self.insert_btn.clicked.connect(self.db_insert_data)
 
         self.update_btn = QPushButton("Update Record")
+        self.update_btn.setObjectName("UpdateButton")
         self.update_btn.setToolTip("Updates the record specified by Patient ID (requires prompt).")
         self.update_btn.clicked.connect(self.db_update_prompt) 
         
@@ -256,8 +208,10 @@ class HealthcareApp(QMainWindow):
 
         # Pagination controls anchored at the bottom of the panel
         nav_layout = QHBoxLayout()
-        self.prev_btn = QPushButton("Previous Page")
-        self.next_btn = QPushButton("Next Page")
+        self.prev_btn = QPushButton("<")
+        self.prev_btn.setObjectName("PreviousPageButton")
+        self.next_btn = QPushButton(">")
+        self.next_btn.setObjectName("NextPageButton")
         self.page_label = QLabel("Page 1")
         self.prev_btn.setEnabled(False) # Start disabled
         
@@ -290,10 +244,10 @@ class HealthcareApp(QMainWindow):
     def _update_analysis_dropdowns(self):
         if self.df is None or self.df.empty:
             return
-            
+
         try:
             numerical_cols = self.df.select_dtypes(include=np.number).columns.tolist()
-            
+
             if hasattr(self, 'ts_analysis_column'):
                 current_ts = self.ts_analysis_column.currentText()
                 self.ts_analysis_column.clear()
@@ -302,7 +256,7 @@ class HealthcareApp(QMainWindow):
                     self.ts_analysis_column.setCurrentText(current_ts)
                 elif len(numerical_cols) > 0:
                     self.ts_analysis_column.setCurrentIndex(0)
-            
+
             if hasattr(self, 'metric1_dropdown'):
                 current_m1 = self.metric1_dropdown.currentText()
                 self.metric1_dropdown.clear()
@@ -311,7 +265,7 @@ class HealthcareApp(QMainWindow):
                     self.metric1_dropdown.setCurrentText(current_m1)
                 elif len(numerical_cols) > 0:
                     self.metric1_dropdown.setCurrentIndex(0)
-            
+
             if hasattr(self, 'metric2_dropdown'):
                 current_m2 = self.metric2_dropdown.currentText()
                 self.metric2_dropdown.clear()
@@ -744,44 +698,65 @@ class HealthcareApp(QMainWindow):
         try:
             self.analysis_canvas.figure.clear()
             self.analysis_ax = self.analysis_canvas.figure.add_subplot(111)
-            
-            working_df = self.filtered_df if (self.filtered_df is not None and not self.filtered_df.empty) else self.df
+
+            working_df = (
+                self.filtered_df
+                if (self.filtered_df is not None and not self.filtered_df.empty)
+                else self.df
+            )
+
             numerical_df = working_df.select_dtypes(include='number')
-            
+
             if numerical_df.empty:
-                QMessageBox.warning(self, "No Numerical Data", "No numerical columns available for heatmap.")
+                QMessageBox.warning(
+                    self,
+                    "No Numerical Data",
+                    "No numerical columns available for heatmap."
+                )
                 return
 
             if len(numerical_df.columns) < 2:
-                QMessageBox.warning(self, "Insufficient Data", "Need at least 2 numerical columns for correlation heatmap.")
+                QMessageBox.warning(
+                    self,
+                    "Insufficient Data",
+                    "Need at least 2 numerical columns for correlation heatmap."
+                )
                 return
-                
+
             corr = numerical_df.corr()
 
             if corr.empty:
-                QMessageBox.warning(self, "No Correlation", "Unable to compute correlation matrix.")
+                QMessageBox.warning(
+                    self,
+                    "No Correlation",
+                    "Unable to compute correlation matrix."
+                )
                 return
 
             sns.heatmap(
-                corr, 
-                annot=True, 
-                fmt=".2f", 
-                cmap='coolwarm', 
+                corr,
+                annot=True,
+                fmt=".2f",
+                cmap="coolwarm",
                 ax=self.analysis_ax,
-                square=True, 
-                cbar_kws={"shrink": 0.7}
+                square=True,
+                cbar_kws={"shrink": 0.7},
             )
-            
+
             self.analysis_ax.set_title("Correlation Heatmap")
-            self.analysis_ax.set_box_aspect(0.8) 
+            self.analysis_ax.set_box_aspect(0.8)
             self.analysis_canvas.figure.tight_layout()
             self.analysis_canvas.draw()
             self.analysis_status_label.setText("Correlation heatmap displayed.")
+
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to display heatmap: {str(e)}")
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to display heatmap: {str(e)}"
+            )
             import traceback
             traceback.print_exc()
-
 
     def create_spectrum_panel(self):
         panel = QWidget()
@@ -804,12 +779,14 @@ class HealthcareApp(QMainWindow):
         
         signal_loading_layout.addWidget(QLabel("Biomedical Signal:"))
         self.signal_dropdown = QComboBox()
+        self.signal_dropdown.setObjectName("BiomedicalSignalDropdown")
         self.signal_dropdown.addItems(numeric_cols if numeric_cols else [])
         self.signal_dropdown.setMinimumWidth(200)
         self.signal_dropdown.setToolTip("Select a signal column from the dataset (e.g., ECG, EEG data)")
         signal_loading_layout.addWidget(self.signal_dropdown)
         
         self.plot_signal_btn = QPushButton("Load & Display Signal")
+        self.plot_signal_btn.setObjectName("LoadDisplaySignalButton")
         self.plot_signal_btn.setToolTip("Loads and displays the selected signal in a scrollable plot.")
         self.plot_signal_btn.clicked.connect(self.plot_raw_signal)
         signal_loading_layout.addWidget(self.plot_signal_btn)
@@ -872,6 +849,7 @@ class HealthcareApp(QMainWindow):
         
         fft_button_layout = QHBoxLayout()
         self.fft_btn = QPushButton("Compute FFT Spectrum")
+        self.fft_btn.setObjectName("ComputeFFTButton")
         self.fft_btn.setToolTip("Calculates and displays the Fast Fourier Transform (Power Spectrum) for the selected segment.")
         self.fft_btn.clicked.connect(self.plot_fft)
         fft_button_layout.addWidget(self.fft_btn)
@@ -924,11 +902,13 @@ class HealthcareApp(QMainWindow):
         viz_controls_layout.addLayout(amp_range_layout)
         
         self.apply_zoom_btn = QPushButton("Apply Zoom")
+        self.apply_zoom_btn.setObjectName("ApplyZoomButton")
         self.apply_zoom_btn.setToolTip("Apply the specified axis limits to zoom into the frequency spectrum.")
         self.apply_zoom_btn.clicked.connect(self.apply_fft_zoom)
         viz_controls_layout.addWidget(self.apply_zoom_btn)
         
         self.reset_zoom_btn = QPushButton("Reset View")
+        self.reset_zoom_btn.setObjectName("ResetViewButton")
         self.reset_zoom_btn.setToolTip("Reset the view to show the full spectrum.")
         self.reset_zoom_btn.clicked.connect(self.reset_fft_zoom)
         viz_controls_layout.addWidget(self.reset_zoom_btn)
@@ -1101,6 +1081,7 @@ class HealthcareApp(QMainWindow):
         controls_layout.addWidget(self.load_image_btn)
 
         self.grayscale_btn = QPushButton("Grayscale Conversion")
+        self.grayscale_btn.setObjectName("GrayscaleButton")
         self.grayscale_btn.setToolTip("Convert the image to grayscale.")
         self.grayscale_btn.clicked.connect(self.convert_to_grayscale)
         controls_layout.addWidget(self.grayscale_btn)
@@ -1108,15 +1089,18 @@ class HealthcareApp(QMainWindow):
         blur_layout = QVBoxLayout()
         blur_layout.addWidget(QLabel("Smoothing Filter:"))
         self.blur_dropdown = QComboBox()
+        self.blur_dropdown.setObjectName("BlurDropdown")
         self.blur_dropdown.addItems(["Gaussian Blur (15x15)", "Median Filter (5x5)"])
         self.blur_dropdown.setToolTip("Select the type of noise reduction filter to apply.")
         blur_layout.addWidget(self.blur_dropdown)
         self.apply_blur_btn = QPushButton("Apply Blur")
+        self.apply_blur_btn.setObjectName("ApplyBlurButton")
         self.apply_blur_btn.clicked.connect(self.apply_blur)
         blur_layout.addWidget(self.apply_blur_btn)
         controls_layout.addLayout(blur_layout)
         
         self.edge_btn = QPushButton("Canny Edge Detection")
+        self.edge_btn.setObjectName("CannyEdgeButton")
         self.edge_btn.setToolTip("Apply Canny algorithm to detect edges.")
         self.edge_btn.clicked.connect(self.apply_edge_detection)
         controls_layout.addWidget(self.edge_btn)
@@ -1129,6 +1113,7 @@ class HealthcareApp(QMainWindow):
         self.threshold_slider.setToolTip("Adjusts the pixel value for image binarization (segmentation).")
         thresh_layout.addWidget(self.threshold_slider)
         self.apply_threshold_btn = QPushButton("Apply Threshold")
+        self.apply_threshold_btn.setObjectName("ApplyThresholdButton")
         self.apply_threshold_btn.clicked.connect(self.apply_threshold)
         thresh_layout.addWidget(self.apply_threshold_btn)
         controls_layout.addLayout(thresh_layout)
@@ -1247,32 +1232,56 @@ class HealthcareApp(QMainWindow):
         label.setPixmap(QPixmap.fromImage(qt_image))
 
     def convert_to_grayscale(self):
-        if self.cv_image is not None:
-            gray = cv2.cvtColor(self.cv_image, cv2.COLOR_BGR2GRAY)
-            self.processed_cv_image = gray 
+        if self.cv_image is None:
+            QMessageBox.warning(self, "No Image", "Please load an image first.")
+            return
+        try:
+            if len(self.cv_image.shape) == 3:
+                gray = cv2.cvtColor(self.cv_image, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = self.cv_image
+            self.processed_cv_image = gray
             self.display_image(self.processed_cv_image, self.processed_image_label)
             self.update_viz_image()
-            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to convert to grayscale: {str(e)}")
+
     def apply_blur(self):
-        if self.cv_image is not None:
+        if self.cv_image is None:
+            QMessageBox.warning(self, "No Image", "Please load an image first.")
+            return
+        try:
             blur_type = self.blur_dropdown.currentText()
-            img = self.cv_image if len(self.cv_image.shape) == 3 else cv2.cvtColor(self.cv_image, cv2.COLOR_GRAY2BGR)
+            if len(self.cv_image.shape) == 3:
+                img = self.cv_image
+            else:
+                img = cv2.cvtColor(self.cv_image, cv2.COLOR_GRAY2BGR)
 
             if blur_type.startswith("Gaussian"):
                 self.processed_cv_image = cv2.GaussianBlur(img, (15, 15), 0)
             elif blur_type.startswith("Median"):
-                self.processed_cv_image = cv2.medianBlur(img, 5) 
-                
+                self.processed_cv_image = cv2.medianBlur(img, 5)
+
             self.display_image(self.processed_cv_image, self.processed_image_label)
             self.update_viz_image()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to apply blur: {str(e)}")
 
     def apply_edge_detection(self):
-        if self.cv_image is not None:
-            gray = cv2.cvtColor(self.cv_image, cv2.COLOR_BGR2GRAY)
+        if self.cv_image is None:
+            QMessageBox.warning(self, "No Image", "Please load an image first.")
+            return
+        try:
+            if len(self.cv_image.shape) == 3:
+                gray = cv2.cvtColor(self.cv_image, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = self.cv_image
             edges = cv2.Canny(gray, 50, 150)
-            self.processed_cv_image = edges 
+            self.processed_cv_image = edges
             self.display_image(self.processed_cv_image, self.processed_image_label)
             self.update_viz_image()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to apply edge detection: {str(e)}")
 
     def apply_threshold(self):
         if self.cv_image is not None:
@@ -1456,12 +1465,12 @@ class HealthcareApp(QMainWindow):
         if self.df is None or self.df.empty:
             QMessageBox.warning(self, "No Data", "Please load data before showing heatmap.")
             return
-
+        
         try:
             self.figure.clear()
             ax = self.figure.add_subplot(111)
             numerical_df = self.df.select_dtypes(include=np.number)
-            
+
             if numerical_df.empty:
                 QMessageBox.warning(self, "Data Error", "No numerical data available for heatmap.")
                 return
@@ -1469,17 +1478,17 @@ class HealthcareApp(QMainWindow):
             if len(numerical_df.columns) < 2:
                 QMessageBox.warning(self, "Insufficient Data", "Need at least 2 numerical columns for correlation heatmap.")
                 return
-                
+
             corr = numerical_df.corr()
 
             if corr.empty:
                 QMessageBox.warning(self, "No Correlation", "Unable to compute correlation matrix.")
                 return
 
-            sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm", ax=ax, 
-                        square=True, 
+            sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm", ax=ax,
+                        square=True,
                         cbar_kws={"shrink": 0.7})
-            
+
             ax.set_title("Correlation Heatmap")
             self.figure.tight_layout()
             self.canvas.draw()
@@ -1544,17 +1553,17 @@ class HealthcareApp(QMainWindow):
 
             y = self.df[col].dropna().values
             n = len(y)
-            
+
             if n < 2:
                 QMessageBox.warning(self, "Error", "Not enough data points for FFT analysis.")
                 return
 
             yf = np.fft.rfft(y)
-            xf = np.fft.rfftfreq(n, d=1.0) 
+            xf = np.fft.rfftfreq(n, d=1.0)
 
             self.figure.clear()
             ax = self.figure.add_subplot(111)
-            ax.set_box_aspect(0.6) 
+            ax.set_box_aspect(0.6)
             ax.plot(xf, 2.0/n * np.abs(yf), color='#E74C3C', linewidth=1.5)
             ax.set_title(f"Power Spectrum (FFT): {col}")
             ax.set_xlabel("Frequency (Cycles/Sample)")
