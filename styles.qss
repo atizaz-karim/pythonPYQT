@@ -376,8 +376,6 @@ QPushButton#ApplyThresholdButton:hover {
 QComboBox#BlurDropdown {
     border: 1px solid rgb(0, 0, 0); /* Black border */
     border-radius: 4px;
-    padding: 4px 8px;
-    background-color: white;
 }
 QComboBox#BlurDropdown:hover {
     border-color: rgb(0, 0, 0); /* Black on hover */
@@ -461,4 +459,97 @@ QPushButton#ResetViewButton {
 }
 QPushButton#ResetViewButton:hover {
     background-color: #EC7063; /* Light red hover */
+}
+/* --------------------------------------- */
+/* ANALYSIS PANEL BUTTON STYLES */
+/* --------------------------------------- */
+
+/* Apply Plot, Scatter Plot, and Heatmap (Blue Style) */
+QPushButton#ApplyPlotButton, 
+QPushButton#ScatterPlotButton, 
+QPushButton#HeatmapButton {
+    background-color: #3498DB; /* Blue color from your CSS */
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 16px;
+    border-color: #3498DB;
+    border-radius: 5px;
+}
+
+QPushButton#ApplyPlotButton:hover, 
+QPushButton#ScatterPlotButton:hover, 
+QPushButton#HeatmapButton:hover {
+    background-color: #6CB4EE; /* Light blue hover from your CSS */
+    border-color: #6CB4EE;
+}
+
+/* Reset Button (Red Style) */
+QPushButton#ResetButton {
+    background-color: #E74C3C; /* Red color from your CSS */
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 16px;
+    border-color: #E74C3C;
+    border-radius: 5px;
+}
+
+QPushButton#ResetButton:hover {
+    background-color: #EC7063; /* Light red hover from your CSS */
+    border-color: #EC7063;
+}
+
+/* --------------------------------------- */
+/* DATA VISUALIZATION PANEL BUTTONS        */
+/* --------------------------------------- */
+
+/* Target all plotting buttons in the Viz Panel */
+QPushButton#VizScatterBtn, 
+QPushButton#VizTimeSeriesBtn, 
+QPushButton#VizFFTBtn, 
+QPushButton#VizHeatmapBtn {
+    background-color: #3498DB; /* Your standard Blue */
+    color: white;
+    font-weight: bold;
+    border-style: solid; 
+    border-width: 1px;
+    padding: 8px 12px;
+    border-color: #3498DB;
+    border-radius: 5px;
+}
+
+/* Hover effects for the buttons */
+QPushButton#VizScatterBtn:hover, 
+QPushButton#VizTimeSeriesBtn:hover, 
+QPushButton#VizFFTBtn:hover, 
+QPushButton#VizHeatmapBtn:hover {
+    background-color: #6CB4EE; /* Light Blue Hover */
+    border-color: #6CB4EE;
+}
+
+/* Optional: Special styling for the Heatmap button to make it 
+   stand out as it spans the full width */
+QPushButton#VizHeatmapBtn {
+    margin-top: 10px;
+    background-color: #1F497D; /* Using your Dark Blue Header color for variety */
+    border-color: #1F497D;
+}
+
+QPushButton#VizHeatmapBtn:hover {
+    background-color: #3498DB;
+}
+
+/* Target all the IDs we just created in Python */
+QComboBox#AnalysisTSCombo, 
+QComboBox#AnalysisMetric1Combo, 
+QComboBox#AnalysisMetric2Combo,
+QComboBox#VizScatterX, 
+QComboBox#VizScatterY, 
+QComboBox#VizTSCombo, 
+QComboBox#VizFFTCombo {
+    border: 1px solid black;
+    border-radius: 4px;
 }

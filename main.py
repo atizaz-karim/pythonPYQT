@@ -74,5 +74,4 @@ if __name__ == "__main__":
         print(f"Failed to start insert thread: {e}")
         QMessageBox.warning(None, "Insert Error", "Failed to start background data insertion.")
 
-    # Run the Qt event loop
     sys.exit(app.exec_())

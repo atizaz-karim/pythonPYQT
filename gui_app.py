@@ -28,7 +28,6 @@ class DatabaseManager:
 class HealthcareApp(QMainWindow):
     def __init__(self, df, db_manager=None):
         super().__init__()
-        # 1. Setup Data Variables
         self.df = df
         self.db_manager = db_manager
         self.current_page = 0
@@ -52,7 +51,6 @@ class HealthcareApp(QMainWindow):
         self.stacked_widget = QTabWidget()
         self.stacked_widget.tabBar().setVisible(False) 
 
-        # Add Tabs (Panels)
         self.stacked_widget.addTab(self.create_data_management_panel(), "Data Loading and Management")
         self.stacked_widget.addTab(self.create_analysis_panel(), "Health Data Analysis")
         self.stacked_widget.addTab(self.create_spectrum_panel(), "Spectrum Analysis")
@@ -64,14 +62,13 @@ class HealthcareApp(QMainWindow):
 
         for i, name in enumerate(tab_names):
             btn = QPushButton(name)
-            btn.setObjectName(f"SidebarBtn_{i}") # SET OBJECT NAME FOR QSS TARGETING
+            btn.setObjectName(f"SidebarBtn_{i}") 
             btn.setToolTip(f"Switch to the {name} section.")
             btn.clicked.connect(lambda checked, index=i: self.stacked_widget.setCurrentIndex(index))
             self.sidebar_layout.addWidget(btn)
 
         self.sidebar_layout.addStretch(1)
 
-        # Add components to the main layout
         main_layout.addWidget(self.sidebar)
         main_layout.addWidget(self.stacked_widget)
 
@@ -82,7 +79,6 @@ class HealthcareApp(QMainWindow):
         else:
             self.populate_table(self.df.head(self.rows_per_page))
 
-    # --- Utility Methods ---
     def _setup_menu_bar(self):
         menu_bar = self.menuBar()
 
@@ -108,7 +104,6 @@ class HealthcareApp(QMainWindow):
         if not hasattr(self, 'table_widget'):
             return
 
-        # 2. CLEAR EVERYTHING: Reset rows and content
         self.table_widget.setRowCount(0) 
         self.table_widget.clearContents()
 
@@ -130,12 +125,10 @@ class HealthcareApp(QMainWindow):
         panel = QWidget()
         layout = QVBoxLayout(panel)
 
-        # Title
         title = QLabel("Data Loading and Management")
         title.setObjectName("PanelTitle") 
         layout.addWidget(title)
 
-        # Data Source Section (Loaders)
         source_group = QWidget()
         source_layout = QHBoxLayout(source_group)
         source_layout.setAlignment(Qt.AlignLeft)
@@ -155,10 +148,8 @@ class HealthcareApp(QMainWindow):
         source_layout.addStretch()
         layout.addWidget(source_group)
         
-        # Database Operations (CRUD)
         db_ops_group = QWidget()
-        db_ops_group.setObjectName("DbOpsGroup") # SET OBJECT NAME FOR QSS TARGETING
-        # REMOVED: db_ops_group.setStyleSheet("...") 
+        db_ops_group.setObjectName("DbOpsGroup") 
         db_ops_layout = QGridLayout(db_ops_group)
         
         db_ops_layout.addWidget(QLabel("### Database CRUD Operations"), 0, 0, 1, 4)
@@ -172,9 +163,8 @@ class HealthcareApp(QMainWindow):
         db_ops_layout.addWidget(self.patient_id_input, 1, 1)
 
         self.insert_btn = QPushButton("Insert Current Data")
-        self.insert_btn.setObjectName("InsertButton") # SET OBJECT NAME FOR QSS TARGETING
+        self.insert_btn.setObjectName("InsertButton") 
         self.insert_btn.setToolTip("Inserts the currently loaded DataFrame into the DB (bulk insert).")
-        # REMOVED: self.insert_btn.setStyleSheet("...") 
         self.insert_btn.clicked.connect(self.db_insert_data)
 
         self.update_btn = QPushButton("Update Record")
@@ -183,9 +173,8 @@ class HealthcareApp(QMainWindow):
         self.update_btn.clicked.connect(self.db_update_prompt) 
         
         self.delete_btn = QPushButton("Delete Record")
-        self.delete_btn.setObjectName("DeleteButton") # SET OBJECT NAME FOR QSS TARGETING
+        self.delete_btn.setObjectName("DeleteButton") 
         self.delete_btn.setToolTip("Removes the record specified by Patient ID permanently.")
-        # REMOVED: self.delete_btn.setStyleSheet("...") 
         self.delete_btn.clicked.connect(self.db_delete_record)
 
         db_ops_layout.addWidget(self.insert_btn, 2, 0)
@@ -195,25 +184,21 @@ class HealthcareApp(QMainWindow):
 
         layout.addWidget(db_ops_group)
 
-        # Table view
         layout.addWidget(QLabel("Loaded Dataset / Database View:"))
         self.table_widget = QTableWidget()
-        # Make the database view taller for easier browsing
         self.table_widget.setMinimumHeight(450)
-        # REMOVED: self.table_widget.setStyleSheet("...") (Moved to QSS)
         layout.addWidget(self.table_widget)
         self.populate_table(self.df) 
         self.status_label = QLabel("Ready.")
         layout.addWidget(self.status_label)
 
-        # Pagination controls anchored at the bottom of the panel
         nav_layout = QHBoxLayout()
         self.prev_btn = QPushButton("<")
         self.prev_btn.setObjectName("PreviousPageButton")
         self.next_btn = QPushButton(">")
         self.next_btn.setObjectName("NextPageButton")
         self.page_label = QLabel("Page 1")
-        self.prev_btn.setEnabled(False) # Start disabled
+        self.prev_btn.setEnabled(False)
         
         self.prev_btn.clicked.connect(self.load_previous_page)
         self.next_btn.clicked.connect(self.load_next_page)
@@ -344,39 +329,27 @@ class HealthcareApp(QMainWindow):
     def db_retrieve_data(self):
         if not self._check_db_manager(): return
         try:
-            # 1. Calculate the starting point (Offset)
             offset = self.current_page * self.rows_per_page
             
-            # 2. Get the specific 50 rows from the database
-            # This ensures we are only pulling a small slice of data into RAM
             retrieved_df = self.db_manager.get_patient_data(limit=self.rows_per_page, offset=offset) 
             
-            # 3. Update the app's data reference
             self.df = retrieved_df
             self.filtered_df = self.df.copy()
             
-            # 4. Clear and Fill the table with ONLY these 50 rows
             self.populate_table(self.df)
             self._update_viz_dropdowns()
             self._update_analysis_dropdowns()
             
-            # 5. Get the TOTAL record count to calculate total pages
-            # Without this, the GUI doesn't know how many pages exist in total
             total_records = self.db_manager.get_total_count()
             
-            # 6. Calculate total pages (handles the math for the last partial page)
             if total_records == 0:
                 total_pages = 1
             else:
                 total_pages = (total_records // self.rows_per_page) + (1 if total_records % self.rows_per_page > 0 else 0)
             
-            # 7. Update the UI Labels
             self.page_label.setText(f"Page {self.current_page + 1} of {total_pages}")
             
-            # 8. Set Button States (Enable/Disable)
-            # Disable 'Previous' if on page 1
             self.prev_btn.setEnabled(self.current_page > 0)
-            # Disable 'Next' if we have reached the end of the database
             self.next_btn.setEnabled(offset + len(retrieved_df) < total_records)
             
             self.status_label.setText(f"Showing rows {offset + 1} to {offset + len(retrieved_df)} of {total_records}")
@@ -445,11 +418,9 @@ class HealthcareApp(QMainWindow):
         panel = QWidget()
         main_layout = QVBoxLayout(panel)
 
-        # 1. Safety Check: Ensure we have columns to show even if df is empty
         if self.df is not None and not self.df.empty:
             numerical_cols = self.df.select_dtypes(include=np.number).columns.tolist()
         else:
-            # Placeholder columns if no data is loaded yet
             numerical_cols = ['Age', 'Blood_Pressure', 'Cholesterol_Level', 'BMI']
 
         title = QLabel("Health Data Analysis")
@@ -458,17 +429,14 @@ class HealthcareApp(QMainWindow):
 
         controls_group = QHBoxLayout()
 
-        # --- Left Side: Filtering and Time-series ---
         filtering_widget = QWidget()
         filtering_widget.setObjectName("FilterGroup") 
         filtering_group = QVBoxLayout(filtering_widget)
         
-        # Using a Header label for styling
         filter_header = QLabel("Data Filtering & Smoothing")
         filter_header.setStyleSheet("font-weight: bold; font-size: 14px;")
         filtering_group.addWidget(filter_header)
 
-        # Moving Average Control
         ma_layout = QHBoxLayout()
         ma_layout.addWidget(QLabel("MA Window:"))
         self.ma_window = QSpinBox()
@@ -477,7 +445,6 @@ class HealthcareApp(QMainWindow):
         ma_layout.addWidget(self.ma_window)
         filtering_group.addLayout(ma_layout)
 
-        # Threshold Control
         thresh_ctrl_layout = QHBoxLayout()
         thresh_ctrl_layout.addWidget(QLabel("Min Threshold:"))
         self.thresh_val = QDoubleSpinBox()
@@ -495,16 +462,18 @@ class HealthcareApp(QMainWindow):
         ts_controls = QHBoxLayout()
         self.ts_analysis_column = QComboBox()
         self.ts_analysis_column.addItems(numerical_cols)
+        self.ts_analysis_column.setObjectName("AnalysisTSCombo")
         self.ts_raw_checkbox = QCheckBox("Show Raw")
         self.ts_raw_checkbox.setChecked(True)
         ts_controls.addWidget(self.ts_analysis_column)
         ts_controls.addWidget(self.ts_raw_checkbox)
         filtering_group.addLayout(ts_controls)
         
-        # BUTTONS: Fixed the connection name to apply_filters_and_plot
         self.apply_filter_btn = QPushButton("Apply & Plot")
+        self.apply_filter_btn.setObjectName("ApplyPlotButton")
         self.apply_filter_btn.clicked.connect(self.apply_filters_and_plot)
         self.reset_filter_btn = QPushButton("Reset")
+        self.reset_filter_btn.setObjectName("ResetButton")
         self.reset_filter_btn.clicked.connect(self.reset_filters)
         
         filter_btn_layout = QHBoxLayout()
@@ -514,7 +483,6 @@ class HealthcareApp(QMainWindow):
         
         controls_group.addWidget(filtering_widget)
         
-        # --- Right Side: Correlation Analysis ---
         corr_widget = QWidget()
         corr_widget.setObjectName("CorrGroup") 
         corr_group = QVBoxLayout(corr_widget)
@@ -524,17 +492,20 @@ class HealthcareApp(QMainWindow):
         
         self.metric1_dropdown = QComboBox()
         self.metric1_dropdown.addItems(numerical_cols if numerical_cols else [])
+        self.metric1_dropdown.setObjectName("AnalysisMetric1Combo")
         self.metric2_dropdown = QComboBox()
         self.metric2_dropdown.addItems(numerical_cols if numerical_cols else [])
-        
+        self.metric2_dropdown.setObjectName("AnalysisMetric2Combo")
         corr_group.addWidget(QLabel("Metric 1:"))
         corr_group.addWidget(self.metric1_dropdown)
         corr_group.addWidget(QLabel("Metric 2:"))
         corr_group.addWidget(self.metric2_dropdown)
 
         self.compute_corr_btn = QPushButton("Scatter Plot")
+        self.compute_corr_btn.setObjectName("ScatterPlotButton")
         self.compute_corr_btn.clicked.connect(self.compute_correlation_plot)
         self.show_heatmap_btn = QPushButton("Heatmap")
+        self.show_heatmap_btn.setObjectName("HeatmapButton")
         self.show_heatmap_btn.clicked.connect(self.show_heatmap)
         
         corr_btn_layout = QHBoxLayout()
@@ -545,9 +516,7 @@ class HealthcareApp(QMainWindow):
         controls_group.addWidget(corr_widget)
         main_layout.addLayout(controls_group)
 
-        # --- Plot Area (Scrollable) ---
         self.analysis_canvas = FigureCanvas(Figure(figsize=(10, 8)))
-        # Increased height as requested
         self.analysis_canvas.setMinimumHeight(700) 
 
         analysis_scroll = QScrollArea()
@@ -555,7 +524,6 @@ class HealthcareApp(QMainWindow):
         analysis_scroll.setWidget(self.analysis_canvas)
         main_layout.addWidget(analysis_scroll)
         
-        # Create the initial axis
         self.analysis_ax = self.analysis_canvas.figure.add_subplot(111)
 
         self.analysis_status_label = QLabel("Ready for analysis.")
@@ -564,55 +532,42 @@ class HealthcareApp(QMainWindow):
         return panel
 
     def apply_filters_and_plot(self):
-        # 1. Safety Check
         if self.df is None or self.df.empty:
             QMessageBox.warning(self, "No Data", "Please load data before applying filters.")
             return
 
-        # 2. Get values from UI controls
         factor = self.outlier_slider.value() / 10.0
         ma_window = self.ma_window.value()
         col = self.ts_analysis_column.currentText()
         
-        # 3. Create working copy for filtering
         self.filtered_df = self.df.copy()
 
-        # 4. OUTLIER REMOVAL (IQR Method)
-        # This actually uses the 'factor' from your slider
         Q1 = self.filtered_df[col].quantile(0.25)
         Q3 = self.filtered_df[col].quantile(0.75)
         IQR = Q3 - Q1
         lower_bound = Q1 - factor * IQR
         upper_bound = Q3 + factor * IQR
         
-        # Filter the dataframe
         self.filtered_df = self.filtered_df[
             (self.filtered_df[col] >= lower_bound) & 
             (self.filtered_df[col] <= upper_bound)
         ]
 
-        # 5. MOVING AVERAGE (Smoothing)
-        # Applies the window size from your SpinBox
         self.filtered_df['MA'] = self.filtered_df[col].rolling(window=ma_window, min_periods=1).mean()
 
-        # 6. PLOTTING
         self.analysis_ax.clear()
         
         if self.ts_raw_checkbox.isChecked():
-            # Plot raw data in a light gray so it's visible but not distracting
             self.analysis_ax.plot(self.df[col].values, color='#BDC3C7', alpha=0.4, label='Raw Data')
         
-        # Plot the processed (Filtered + Moving Average) data
         self.analysis_ax.plot(self.filtered_df['MA'].values, color='#3498DB', linewidth=2, label='Filtered (MA)')
         
-        # 7. UI Formatting
         self.analysis_ax.set_title(f"Analysis: {col}")
         self.analysis_ax.set_xlabel("Sample Index")
         self.analysis_ax.set_ylabel("Value")
         self.analysis_ax.legend()
         self.analysis_ax.grid(True, linestyle='--', alpha=0.5)
         
-        # Maintain professional aspect ratio in large container
         self.analysis_ax.set_box_aspect(0.6)
         
         self.analysis_canvas.figure.tight_layout()
@@ -1139,7 +1094,7 @@ class HealthcareApp(QMainWindow):
         original_container_layout = QVBoxLayout(original_container)
         original_container_layout.setSpacing(5)
         
-        original_title = QLabel("Original Image (Uploaded)")
+        original_title = QLabel("Original Image")
         original_title.setAlignment(Qt.AlignCenter)
         original_title.setStyleSheet("font-weight: bold; font-size: 11px; color: #333;")
         original_container_layout.addWidget(original_title)
@@ -1164,7 +1119,7 @@ class HealthcareApp(QMainWindow):
         processed_container_layout = QVBoxLayout(processed_container)
         processed_container_layout.setSpacing(5)
         
-        processed_title = QLabel("Processed Image (Result)")
+        processed_title = QLabel("Processed Image")
         processed_title.setAlignment(Qt.AlignCenter)
         processed_title.setStyleSheet("font-weight: bold; font-size: 11px; color: #333;")
         processed_container_layout.addWidget(processed_title)
@@ -1347,7 +1302,7 @@ class HealthcareApp(QMainWindow):
         self.canvas.draw()
 
 
-    # --- Panel 5: Visualization ---
+# --- Panel 5: Visualization ---
     def create_data_visualization_panel(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
@@ -1367,8 +1322,11 @@ class HealthcareApp(QMainWindow):
 
         # Scatter Plot Controls
         self.scatter_x_combo = QComboBox(); self.scatter_x_combo.addItems(numerical_cols if numerical_cols else [])
+        self.scatter_x_combo.setObjectName("VizScatterX")
         self.scatter_y_combo = QComboBox(); self.scatter_y_combo.addItems(numerical_cols if numerical_cols else [])
+        self.scatter_y_combo.setObjectName("VizScatterY")
         self.scatter_plot_btn = QPushButton("Plot Scatter")
+        self.scatter_plot_btn.setObjectName("VizScatterBtn")
         self.scatter_plot_btn.setToolTip("Plots relationship between two selected variables.")
         self.scatter_plot_btn.clicked.connect(self.plot_scatter)
         
@@ -1378,7 +1336,9 @@ class HealthcareApp(QMainWindow):
 
         # Time-Series Plot Controls
         self.ts_column_combo = QComboBox(); self.ts_column_combo.addItems(numerical_cols if numerical_cols else [])
+        self.ts_column_combo.setObjectName("VizTSCombo")
         self.ts_plot_btn = QPushButton("Plot Time-Series")
+        self.ts_plot_btn.setObjectName("VizTimeSeriesBtn")
         self.ts_plot_btn.setToolTip("Plots the value of a variable over index/time.")
         self.ts_plot_btn.clicked.connect(self.plot_time_series)
         
@@ -1387,7 +1347,9 @@ class HealthcareApp(QMainWindow):
 
         # FFT Spectrum Plot Controls
         self.fft_column_combo = QComboBox(); self.fft_column_combo.addItems(numerical_cols if numerical_cols else [])
+        self.fft_column_combo.setObjectName("VizFFTCombo")
         self.fft_plot_btn = QPushButton("Plot FFT Spectrum")
+        self.fft_plot_btn.setObjectName("VizFFTBtn")
         self.fft_plot_btn.setToolTip("Displays the frequency components of a signal.")
         self.fft_plot_btn.clicked.connect(self.plot_fft_viz) 
         
@@ -1396,6 +1358,7 @@ class HealthcareApp(QMainWindow):
         
         # Heatmap Button
         self.heatmap_btn = QPushButton("Show Correlation Heatmap")
+        self.heatmap_btn.setObjectName("VizHeatmapBtn")
         self.heatmap_btn.setToolTip("Visualize correlations between all numerical variables.")
         self.heatmap_btn.clicked.connect(self.plot_heatmap)
         controls_group_layout.addWidget(self.heatmap_btn, 3, 0, 1, 5)
