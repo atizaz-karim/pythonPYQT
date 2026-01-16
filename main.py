@@ -69,7 +69,6 @@ if __name__ == "__main__":
     try:
         insert_thread = InsertDataThread(db_path, df)
         insert_thread.progress.connect(update_status) 
-        insert_thread.start()
     except Exception as e:
         print(f"Failed to start insert thread: {e}")
         QMessageBox.warning(None, "Insert Error", "Failed to start background data insertion.")

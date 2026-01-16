@@ -3,10 +3,12 @@ from PyQt5.QtWidgets import (
     QPushButton, QComboBox, QTabWidget, QFileDialog, QTableWidget,
     QTableWidgetItem, QScrollArea, QSlider, QLineEdit, QCheckBox,
     QSpinBox, QMessageBox, QGridLayout, QInputDialog, QDoubleSpinBox,
-    QFrame, QGroupBox
+    QFrame, QGroupBox, QHeaderView
 )
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtWidgets import QDateTimeEdit
+from PyQt5.QtCore import QDateTime
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -27,6 +29,7 @@ class DatabaseManager:
 
 class HealthcareApp(QMainWindow):
     def __init__(self, df, db_manager=None):
+
         super().__init__()
         self.df = df
         self.db_manager = db_manager
@@ -37,12 +40,25 @@ class HealthcareApp(QMainWindow):
         self.processed_cv_image = None
 
         self.setWindowTitle("Healthcare Data and Medical Image Processing Tool")
-        self.setGeometry(50, 50, 1400, 900)
+        self.setGeometry(50, 50, 1400, 800)
+        
+        # 2. Setup the Scroll Area
+        self.main_scroll = QScrollArea() 
+        self.main_scroll.setObjectName("MainScrollArea") 
+        self.main_scroll.setWidgetResizable(True)
+        self.main_scroll.setFrameShape(QFrame.NoFrame)
 
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QHBoxLayout(central_widget)
+        # 3. Create the container widget
+        container_widget = QWidget()
+        self.main_scroll.setWidget(container_widget)
+        
+        # FIX: Remove the duplicate line that uses the wrong name
+        self.setCentralWidget(self.main_scroll) 
 
+        # 4. DEFINE main_layout HERE
+        main_layout = QHBoxLayout(container_widget)
+
+        # Now the following lines will work because main_layout is defined above
         self.sidebar = QWidget()
         self.sidebar.setObjectName("SidebarWidget")
         self.sidebar.setFixedWidth(250)
@@ -53,7 +69,7 @@ class HealthcareApp(QMainWindow):
 
         self.stacked_widget.addTab(self.create_data_management_panel(), "Data Loading and Management")
         self.stacked_widget.addTab(self.create_analysis_panel(), "Health Data Analysis")
-        self.stacked_widget.addTab(self.create_spectrum_panel(), "Spectrum Analysis")
+        self.stacked_widget.addTab(self.create_spectrum_panel(), "Signal Analysis")
         self.stacked_widget.addTab(self.create_image_processing_panel(), "Medical Image Processing")
         self.stacked_widget.addTab(self.create_data_visualization_panel(), "Data Visualization")
 
@@ -111,14 +127,50 @@ class HealthcareApp(QMainWindow):
             self.table_widget.setColumnCount(0)
             return
 
-        self.table_widget.setRowCount(len(df))
-        self.table_widget.setColumnCount(len(df.columns))
-        self.table_widget.setHorizontalHeaderLabels(df.columns)
-        for i in range(len(df)):
-            for j, col in enumerate(df.columns):
-                self.table_widget.setItem(i, j, QTableWidgetItem(str(df.iloc[i, j])))
-        self.table_widget.resizeColumnsToContents()
-        self.table_widget.setToolTip("Scrollable view of the loaded or retrieved dataset.")
+        # Columns to exclude from the dataset view
+        columns_to_exclude = [
+            'Sleep_Hours', 'Sleep Hours',
+            'Triglyceride_Level', 'Triglyceride Level',
+            'CRP_Level', 'CRP Level',
+            'Homocysteine_Level', 'Homocysteine Level'
+        ]
+        
+        # Filter out excluded columns
+        display_df = df.drop(columns=[col for col in columns_to_exclude if col in df.columns], errors='ignore')
+
+        self.table_widget.setRowCount(len(display_df))
+        self.table_widget.setColumnCount(len(display_df.columns))
+        self.table_widget.setHorizontalHeaderLabels(display_df.columns)
+
+        for i in range(len(display_df)):
+            for j, col in enumerate(display_df.columns):
+                val = display_df.iloc[i, j]
+                
+                # --- NEW: Check for ECG/EEG Signal Columns ---
+                if col in ['ECG_Signal', 'EEG_Signal']:
+                    val_str = str(val).strip() if val is not None else ""
+                    if val_str and val_str != "nan" and len(val_str) > 0:
+                        # Count number of data points by splitting commas
+                        points = len(val_str.split(','))
+                        # Create a preview label: e.g., "📈 500 pts [0.12, 0.45...]"
+                        display_text = f"{points} pts [{val_str[:12]}...]"
+                    else:
+                        display_text = "No Signal"
+                else:
+                    # Default handling for regular columns
+                    display_text = str(val) if val is not None else ""
+
+                self.table_widget.setItem(i, j, QTableWidgetItem(display_text))
+
+        # UI Fix: Don't resize Signal columns to full contents (they are too long)
+        header = self.table_widget.horizontalHeader()
+        for i, col_name in enumerate(display_df.columns):
+            if "Signal" in col_name:
+                self.table_widget.setColumnWidth(i, 160) # Keep signal columns compact
+            else:
+                header.setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        
+        self.table_widget.setToolTip("Scrollable view of the loaded dataset. Signals are shown as previews.")
 
 # --- Panel 1: Data Management (CRUD) ---
     def create_data_management_panel(self):
@@ -147,9 +199,94 @@ class HealthcareApp(QMainWindow):
         source_layout.addWidget(self.db_connect_btn)
         source_layout.addStretch()
         layout.addWidget(source_group)
+
+# --- New Manual Entry Section ---
+        manual_entry_group = QGroupBox("Manual Patient Entry & Diagnostics")
+        manual_layout = QGridLayout(manual_entry_group)
+        manual_layout.setSpacing(15) 
+        manual_layout.setContentsMargins(20, 20, 20, 20)
+
+        # Row 0: Name and Age
+        manual_layout.addWidget(QLabel("Patient Name:"), 0, 0)
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("Full Name")
+        manual_layout.addWidget(self.name_input, 0, 1)
+
+        manual_layout.addWidget(QLabel("Age:"), 0, 2)
+        self.age_input = QSpinBox()
+        self.age_input.setRange(0, 120)
+        self.age_input.setSuffix(" yrs")
+        manual_layout.addWidget(self.age_input, 0, 3)
+
+        # Row 1: Gender and Blood Pressure
+        manual_layout.addWidget(QLabel("Gender:"), 1, 0)
+        self.gender_input = QComboBox()
+        self.gender_input.addItems(["Male", "Female", "Other"])
+        manual_layout.addWidget(self.gender_input, 1, 1)
+
+        manual_layout.addWidget(QLabel("Blood Pressure (sys):"), 1, 2)
+        self.bp_input = QDoubleSpinBox()
+        self.bp_input.setRange(50, 250)
+        self.bp_input.setSuffix(" mmHg")
+        manual_layout.addWidget(self.bp_input, 1, 3)
+
+        # Row 2: Cholesterol and BMI
+        manual_layout.addWidget(QLabel("Cholesterol:"), 2, 0)
+        self.chol_input = QDoubleSpinBox()
+        self.chol_input.setRange(100, 400)
+        self.chol_input.setSuffix(" mg/dL")
+        manual_layout.addWidget(self.chol_input, 2, 1)
+
+        manual_layout.addWidget(QLabel("BMI:"), 2, 2)
+        self.bmi_input = QDoubleSpinBox()
+        self.bmi_input.setRange(10, 60)
+        manual_layout.addWidget(self.bmi_input, 2, 3)
+
+        # Row 3: Blood Sugar and Status
+        manual_layout.addWidget(QLabel("Fasting Blood Sugar:"), 3, 0)
+        self.sugar_input = QDoubleSpinBox()
+        self.sugar_input.setRange(50, 300)
+        self.sugar_input.setSuffix(" mg/dL")
+        manual_layout.addWidget(self.sugar_input, 3, 1)
+
+        manual_layout.addWidget(QLabel("Heart Disease Status:"), 3, 2)
+        self.status_input = QComboBox()
+        self.status_input.addItems(["Negative", "Positive"])
+        manual_layout.addWidget(self.status_input, 3, 3)
+
+        # Row 4: ECG and EEG Data (Now clearly in Row 4)
+        manual_layout.addWidget(QLabel("ECG Signal (CSV):"), 4, 0)
+        self.ecg_input = QLineEdit()
+        self.ecg_input.setPlaceholderText("e.g., 0.1, 0.5, 0.8...")
+        manual_layout.addWidget(self.ecg_input, 4, 1)
+
+        manual_layout.addWidget(QLabel("EEG Signal (CSV):"), 4, 2)
+        self.eeg_input = QLineEdit()
+        self.eeg_input.setPlaceholderText("e.g., -20, 15, 30...")
+        manual_layout.addWidget(self.eeg_input, 4, 3)
+
+        # Row 5: Date of Record (Moved to Row 5 to avoid overlap)
+        manual_layout.addWidget(QLabel("Date of Record:"), 5, 0)
+        # Ensure QDateTimeEdit and QDateTime are imported from PyQt5.QtWidgets/QtCore
+        self.date_input = QDateTimeEdit(QDateTime.currentDateTime())
+        self.date_input.setCalendarPopup(True) 
+        manual_layout.addWidget(self.date_input, 5, 1)
+        # Assign ID for CSS
+        self.date_input.setObjectName("dateInput")
+
+        # Row 6: Submit Button (Moved to Row 6)
+        self.add_patient_btn = QPushButton("Save Patient Record")
+        self.add_patient_btn.setMinimumHeight(40)
+        self.add_patient_btn.setObjectName("saveButton")
+        self.add_patient_btn.clicked.connect(self.manual_db_insert)
+        
+        # Grid parameters: (widget, row, column, rowSpan, columnSpan)
+        manual_layout.addWidget(self.add_patient_btn, 6, 0, 1, 4)
+
+        layout.addWidget(manual_entry_group)
         
         db_ops_group = QWidget()
-        db_ops_group.setObjectName("DbOpsGroup") 
+        db_ops_group.setObjectName("DbOpsGroup")
         db_ops_layout = QGridLayout(db_ops_group)
         
         db_ops_layout.addWidget(QLabel("### Database CRUD Operations"), 0, 0, 1, 4)
@@ -227,12 +364,19 @@ class HealthcareApp(QMainWindow):
                 QMessageBox.critical(self, "Error Loading Data", f"Failed to load CSV: {e}")
 
     def _update_analysis_dropdowns(self):
+        """Refreshes the dropdown menus while filtering out non-analytical columns like Patient ID."""
         if self.df is None or self.df.empty:
             return
 
         try:
-            numerical_cols = self.df.select_dtypes(include=np.number).columns.tolist()
+            # Get numerical columns and filter out 'Patient ID' or any column containing 'ID'
+            # This ensures only health metrics are shown in the analysis dropdowns.
+            numerical_cols = [
+                col for col in self.df.select_dtypes(include=np.number).columns.tolist()
+                if 'ID' not in col.upper()
+            ]
 
+            # 1. Update Time-Series Analysis Column
             if hasattr(self, 'ts_analysis_column'):
                 current_ts = self.ts_analysis_column.currentText()
                 self.ts_analysis_column.clear()
@@ -242,6 +386,7 @@ class HealthcareApp(QMainWindow):
                 elif len(numerical_cols) > 0:
                     self.ts_analysis_column.setCurrentIndex(0)
 
+            # 2. Update Correlation Metric 1
             if hasattr(self, 'metric1_dropdown'):
                 current_m1 = self.metric1_dropdown.currentText()
                 self.metric1_dropdown.clear()
@@ -251,26 +396,45 @@ class HealthcareApp(QMainWindow):
                 elif len(numerical_cols) > 0:
                     self.metric1_dropdown.setCurrentIndex(0)
 
+            # 3. Update Correlation Metric 2
             if hasattr(self, 'metric2_dropdown'):
                 current_m2 = self.metric2_dropdown.currentText()
                 self.metric2_dropdown.clear()
                 self.metric2_dropdown.addItems(numerical_cols if numerical_cols else [])
                 if current_m2 in numerical_cols:
                     self.metric2_dropdown.setCurrentText(current_m2)
+                # Try to select the second available metric for a better initial scatter plot
                 elif len(numerical_cols) > 1:
                     self.metric2_dropdown.setCurrentIndex(1)
                 elif len(numerical_cols) > 0:
                     self.metric2_dropdown.setCurrentIndex(0)
+                    
         except Exception as e:
             print(f"Error updating analysis dropdowns: {e}")
 
     def _update_viz_dropdowns(self):
+        """Refreshes visualization dropdowns with numeric columns and biomedical signals."""
         if self.df is None or self.df.empty:
             return
             
         try:
+            # FIX: Define numerical_cols by selecting all numeric types from the dataframe
             numerical_cols = self.df.select_dtypes(include=np.number).columns.tolist()
+
+            # Filter specifically for biomedical signals (ECG/EEG)
+            biomed_cols = [col for col in self.df.columns if 'EEG' in col.upper() or 'ECG' in col.upper()]
             
+            # 1. Update Signal Selection Dropdown
+            if hasattr(self, 'signal_dropdown'):
+                current_signal = self.signal_dropdown.currentText()
+                self.signal_dropdown.clear()
+                # Use biomed_cols if found, otherwise fall back to all numerical columns
+                items = biomed_cols if biomed_cols else numerical_cols
+                self.signal_dropdown.addItems(items if items else ["No Data"])
+                if current_signal in items:
+                    self.signal_dropdown.setCurrentText(current_signal)
+
+            # 2. Update Scatter Plot X-Axis Dropdown
             if hasattr(self, 'scatter_x_combo'):
                 current_x = self.scatter_x_combo.currentText()
                 self.scatter_x_combo.clear()
@@ -280,6 +444,7 @@ class HealthcareApp(QMainWindow):
                 elif len(numerical_cols) > 0:
                     self.scatter_x_combo.setCurrentIndex(0)
             
+            # 3. Update Scatter Plot Y-Axis Dropdown
             if hasattr(self, 'scatter_y_combo'):
                 current_y = self.scatter_y_combo.currentText()
                 self.scatter_y_combo.clear()
@@ -291,6 +456,7 @@ class HealthcareApp(QMainWindow):
                 elif len(numerical_cols) > 0:
                     self.scatter_y_combo.setCurrentIndex(0)
             
+            # 4. Update Time-Series Column Dropdown
             if hasattr(self, 'ts_column_combo'):
                 current_ts = self.ts_column_combo.currentText()
                 self.ts_column_combo.clear()
@@ -300,6 +466,7 @@ class HealthcareApp(QMainWindow):
                 elif len(numerical_cols) > 0:
                     self.ts_column_combo.setCurrentIndex(0)
             
+            # 5. Update FFT Spectrum Column Dropdown
             if hasattr(self, 'fft_column_combo'):
                 current_fft = self.fft_column_combo.currentText()
                 self.fft_column_combo.clear()
@@ -308,17 +475,10 @@ class HealthcareApp(QMainWindow):
                     self.fft_column_combo.setCurrentText(current_fft)
                 elif len(numerical_cols) > 0:
                     self.fft_column_combo.setCurrentIndex(0)
-            
-            if hasattr(self, 'signal_dropdown'):
-                current_signal = self.signal_dropdown.currentText()
-                self.signal_dropdown.clear()
-                self.signal_dropdown.addItems(numerical_cols if numerical_cols else [])
-                if current_signal in numerical_cols:
-                    self.signal_dropdown.setCurrentText(current_signal)
-                elif len(numerical_cols) > 0:
-                    self.signal_dropdown.setCurrentIndex(0)
-        except Exception:
-            pass
+                    
+        except Exception as e:
+            # Print the error to the console for debugging
+            print(f"Error updating visualization dropdowns: {e}")
 
     # --- DB HANDLERS (Unchanged logic) ---
     def _check_db_manager(self):
@@ -331,31 +491,80 @@ class HealthcareApp(QMainWindow):
         try:
             offset = self.current_page * self.rows_per_page
             
+            # 1. Fetch fresh data from DB
             retrieved_df = self.db_manager.get_patient_data(limit=self.rows_per_page, offset=offset) 
             
-            self.df = retrieved_df
+            # 2. CRITICAL FIX: Overwrite self.df instead of appending/merging
+            # This ensures the view starts fresh with only what is currently in the DB
+            self.df = retrieved_df.copy()
             self.filtered_df = self.df.copy()
             
+            # 3. Clear and Re-populate the table widget
             self.populate_table(self.df)
+            
+            # Update UI components
             self._update_viz_dropdowns()
             self._update_analysis_dropdowns()
             
             total_records = self.db_manager.get_total_count()
-            
-            if total_records == 0:
-                total_pages = 1
-            else:
-                total_pages = (total_records // self.rows_per_page) + (1 if total_records % self.rows_per_page > 0 else 0)
-            
-            self.page_label.setText(f"Page {self.current_page + 1} of {total_pages}")
+            total_pages = (total_records // self.rows_per_page) + (1 if total_records % self.rows_per_page > 0 else 0)
+            self.page_label.setText(f"Page {self.current_page + 1} of {max(1, total_pages)}")
             
             self.prev_btn.setEnabled(self.current_page > 0)
             self.next_btn.setEnabled(offset + len(retrieved_df) < total_records)
             
-            self.status_label.setText(f"Showing rows {offset + 1} to {offset + len(retrieved_df)} of {total_records}")
+            self.status_label.setText(f"Table Refreshed: Showing {len(retrieved_df)} records.")
             
         except Exception as e:
-            QMessageBox.critical(self, "DB Retrieval Error", f"Failed to retrieve data: {e}")
+            QMessageBox.critical(self, "Refresh Error", f"Failed to retrieve data: {e}")
+
+    def manual_db_insert(self):
+        """Captures UI input and sends it to the relational database."""
+        try:
+            # 1. Basic validation
+            name_val = self.name_input.text().strip()
+            if not name_val:
+                QMessageBox.warning(self, "Input Error", "Please enter a patient name.")
+                return
+
+            # 2. Extract values from UI widgets
+            gender_val = self.gender_input.currentText()
+            record_date = self.date_input.dateTime().toString("yyyy-MM-dd HH:mm:ss")
+
+            # 3. Create the data dictionary
+            # Ensure keys match the 'column_mapping' in database_manager.py
+            report_data = {
+                "Name": name_val,
+                "Gender": gender_val,
+                "Age": self.age_input.value(),
+                "Blood_Pressure": self.bp_input.value(),
+                "Cholesterol_Level": self.chol_input.value(),
+                "BMI": self.bmi_input.value(),
+                "Fasting_Blood_Sugar": self.sugar_input.value(),
+                "Heart_Disease_Status": self.status_input.currentText(),
+                "ECG_Signal": self.ecg_input.text().strip(),
+                "EEG_Signal": self.eeg_input.text().strip(),
+                "Date_Recorded": record_date
+            }
+
+            # 4. Convert to DataFrame and Insert
+            # The DatabaseManager.insert_patient_data logic handles the 
+            # Patient ID lookup/creation automatically now.
+            temp_df = pd.DataFrame([report_data])
+            self.db_manager.insert_patient_data(temp_df) 
+            
+            # 5. UI Updates
+            self.db_retrieve_data() # Refresh the table to show new entry
+            
+            # Clear fields for next entry
+            self.name_input.clear()
+            self.ecg_input.clear()
+            self.eeg_input.clear()
+            self.status_label.setText(f"Added entry for {name_val} at {record_date}")
+            QMessageBox.information(self, "Success", f"Data saved for {name_val}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to add patient record: {e}")
 
     def db_insert_data(self):
         if not self._check_db_manager(): return
@@ -372,22 +581,36 @@ class HealthcareApp(QMainWindow):
     def db_update_prompt(self):
         if not self._check_db_manager(): return
 
+        # 1. Get the Patient ID from the input box
         patient_id_str = self.patient_id_input.text().strip()
         if not patient_id_str.isdigit():
             QMessageBox.warning(self, "Input Error", "Please enter a valid Patient ID (number) to update.")
             return
         patient_id = int(patient_id_str)
         
-        fields = ['Age', 'Gender', 'Blood_Pressure', 'Cholesterol_Level', 'BMI'] 
+        # 2. ADD 'Name' TO THE FIELDS LIST HERE
+        fields = ['Name', 'Age', 'Gender', 'Blood_Pressure', 'Cholesterol_Level', 'BMI', 'Heart_Disease_Status'] 
 
+        # 3. Ask the user which field they want to change
         field, ok = QInputDialog.getItem(self, "Update Record", "Select Field to Update:", fields, 0, False)
+        
         if ok and field:
+            # 4. Open a text input dialog for the new value
             new_value, ok = QInputDialog.getText(self, "Update Record", f"Enter new value for {field}:")
-            if ok:
+            
+            if ok and new_value:
                 try:
+                    # Create the update dictionary
                     update_kwargs = {field: new_value}
+                    
+                    # Call the DB manager to execute the UPDATE SQL
                     self.db_manager.update_patient_data(patient_id, **update_kwargs)
-                    QMessageBox.information(self, "Success", f"Patient {patient_id} updated successfully. Reload data to view changes.")
+                    
+                    QMessageBox.information(self, "Success", f"Patient {patient_id} updated successfully.")
+                    
+                    # 5. Refresh the table so you can see the new Name/Value immediately
+                    self.db_retrieve_data() 
+                    
                 except Exception as e:
                     QMessageBox.critical(self, "DB Update Error", f"Failed to update record: {e}")
 
@@ -402,14 +625,26 @@ class HealthcareApp(QMainWindow):
         patient_id = int(patient_id_str)
         
         reply = QMessageBox.question(self, 'Confirm Deletion',
-                                     f"Are you sure you want to DELETE record for Patient ID {patient_id}?",
+                                     f"Are you sure you want to PERMANENTLY delete Patient ID {patient_id}?",
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         
         if reply == QMessageBox.Yes:
             try:
-                self.db_manager.delete_patient_data(patient_id)
-                QMessageBox.information(self, "Success", f"Patient {patient_id} deleted successfully.")
-                self.db_retrieve_data() 
+                # Capture the rowcount returned by the manager
+                rows_affected = self.db_manager.delete_patient_data(patient_id)
+                
+                if rows_affected > 0:
+                    # SUCCESS: ID existed and was removed
+                    QMessageBox.information(self, "Success", f"Patient ID {patient_id} deleted successfully.")
+                    self.patient_id_input.clear()
+                    self.db_retrieve_data() 
+                elif rows_affected == 0:
+                    # FAILURE: ID does not exist in the table
+                    QMessageBox.warning(self, "Not Found", f"Delete failed: No patient found with ID {patient_id}.")
+                else:
+                    # ERROR: A database exception occurred (-1)
+                    QMessageBox.critical(self, "Error", "A database error occurred during deletion.")
+                
             except Exception as e:
                 QMessageBox.critical(self, "DB Deletion Error", f"Failed to delete record: {e}")
 
@@ -419,22 +654,38 @@ class HealthcareApp(QMainWindow):
         main_layout = QVBoxLayout(panel)
 
         if self.df is not None and not self.df.empty:
-            numerical_cols = self.df.select_dtypes(include=np.number).columns.tolist()
+           numerical_cols = [col for col in self.df.select_dtypes(include=np.number).columns 
+                              if 'ID' not in col.upper()]
         else:
             numerical_cols = ['Age', 'Blood_Pressure', 'Cholesterol_Level', 'BMI']
 
         title = QLabel("Health Data Analysis")
         title.setObjectName("PanelTitle")
         main_layout.addWidget(title)
+        
+        patient_sel_layout = QHBoxLayout()
+        patient_sel_layout.addWidget(QLabel("Select Patient ID:"))
+        self.analysis_patient_id = QComboBox()
+        self.analysis_patient_id.setEditable(True)
+        # Automatically refresh data when a new patient is selected
+        self.analysis_patient_id.currentTextChanged.connect(self.update_analysis_for_patient)
+        patient_sel_layout.addWidget(self.analysis_patient_id)
+        
+        self.refresh_patient_list_btn = QPushButton("Refresh ID List")
+        self.refresh_patient_list_btn.setObjectName("refreshIdButton")
+        self.refresh_patient_list_btn.clicked.connect(self._refresh_patient_ids)
+        patient_sel_layout.addWidget(self.refresh_patient_list_btn)
+        
+        patient_sel_layout.addStretch()
+        main_layout.addLayout(patient_sel_layout)
 
         controls_group = QHBoxLayout()
 
         filtering_widget = QWidget()
-        filtering_widget.setObjectName("FilterGroup") 
+        filtering_widget.setObjectName("FilterGroup")
         filtering_group = QVBoxLayout(filtering_widget)
         
         filter_header = QLabel("Data Filtering & Smoothing")
-        filter_header.setStyleSheet("font-weight: bold; font-size: 14px;")
         filtering_group.addWidget(filter_header)
 
         ma_layout = QHBoxLayout()
@@ -484,10 +735,9 @@ class HealthcareApp(QMainWindow):
         controls_group.addWidget(filtering_widget)
         
         corr_widget = QWidget()
-        corr_widget.setObjectName("CorrGroup") 
+        corr_widget.setObjectName("CorrGroup")
         corr_group = QVBoxLayout(corr_widget)
         corr_header = QLabel("Correlation Analysis")
-        corr_header.setStyleSheet("font-weight: bold; font-size: 14px;")
         corr_group.addWidget(corr_header)
         
         self.metric1_dropdown = QComboBox()
@@ -531,16 +781,56 @@ class HealthcareApp(QMainWindow):
 
         return panel
 
+    def _refresh_patient_ids(self):
+        """Populates the dropdown with available Patient IDs from the main dataframe."""
+        if self.df is not None and 'patient_id' in self.df.columns:
+            ids = sorted(self.df['patient_id'].unique().astype(str))
+            self.analysis_patient_id.clear()
+            self.analysis_patient_id.addItems(ids)
+
+    def update_analysis_for_patient(self):
+        """Filters the active dataset to only include the selected patient."""
+        selected_id = self.analysis_patient_id.currentText()
+        if not selected_id or self.df is None:
+            return
+
+        try:
+            # Filter global dataframe for the specific patient
+            self.patient_df = self.df[self.df['patient_id'].astype(str) == selected_id].copy()
+            
+            if self.patient_df.empty:
+                self.analysis_status_label.setText(f"No records found for Patient ID: {selected_id}")
+            else:
+                self.analysis_status_label.setText(f"Loaded {len(self.patient_df)} records for Patient ID: {selected_id}")
+                # Automatically update plots if needed
+        except Exception as e:
+            print(f"Filtering error: {e}")
+
     def apply_filters_and_plot(self):
         if self.df is None or self.df.empty:
             QMessageBox.warning(self, "No Data", "Please load data before applying filters.")
+            return
+
+        # --- NEW: Filter by selected Patient ID if available ---
+        selected_id = self.analysis_patient_id.currentText().strip()
+        if selected_id and 'patient_id' in self.df.columns:
+            # Filter global df to only include the specific patient's history
+            target_df = self.df[self.df['patient_id'].astype(str) == selected_id].copy()
+            patient_title = f" (Patient: {selected_id})"
+        else:
+            target_df = self.df.copy()
+            patient_title = ""
+
+        if target_df.empty:
+            QMessageBox.warning(self, "No Data", "No records found for the selected patient.")
             return
 
         factor = self.outlier_slider.value() / 10.0
         ma_window = self.ma_window.value()
         col = self.ts_analysis_column.currentText()
         
-        self.filtered_df = self.df.copy()
+        # Apply filtering logic to the (potentially single-patient) dataset
+        self.filtered_df = target_df.copy()
 
         Q1 = self.filtered_df[col].quantile(0.25)
         Q3 = self.filtered_df[col].quantile(0.75)
@@ -558,23 +848,23 @@ class HealthcareApp(QMainWindow):
         self.analysis_ax.clear()
         
         if self.ts_raw_checkbox.isChecked():
-            self.analysis_ax.plot(self.df[col].values, color='#BDC3C7', alpha=0.4, label='Raw Data')
+            # Plot raw history for the specific patient
+            self.analysis_ax.plot(target_df[col].values, color='#BDC3C7', alpha=0.4, label='Raw History')
         
-        self.analysis_ax.plot(self.filtered_df['MA'].values, color='#3498DB', linewidth=2, label='Filtered (MA)')
+        self.analysis_ax.plot(self.filtered_df['MA'].values, color='#3498DB', linewidth=2, label='Filtered Trend')
         
-        self.analysis_ax.set_title(f"Analysis: {col}")
-        self.analysis_ax.set_xlabel("Sample Index")
+        self.analysis_ax.set_title(f"Analysis: {col}{patient_title}")
+        self.analysis_ax.set_xlabel("Visit / Record Index")
         self.analysis_ax.set_ylabel("Value")
         self.analysis_ax.legend()
         self.analysis_ax.grid(True, linestyle='--', alpha=0.5)
         
         self.analysis_ax.set_box_aspect(0.6)
-        
         self.analysis_canvas.figure.tight_layout()
         self.analysis_canvas.draw()
         
         self.analysis_status_label.setText(
-            f"Applied IQR Factor: {factor} | MA Window: {ma_window} | Rows Remaining: {len(self.filtered_df)}"
+            f"Rows: {len(self.filtered_df)} | Patient Focus: {selected_id if selected_id else 'All'}"
         )
         
     def reset_filters(self):
@@ -615,8 +905,24 @@ class HealthcareApp(QMainWindow):
             QMessageBox.warning(self, "Invalid Selection", "Please select both metrics for correlation analysis.")
             return
 
-        working_df = self.filtered_df if (self.filtered_df is not None and not self.filtered_df.empty) else self.df
+        # --- SINGLE PATIENT LOGIC START ---
+        # Get selected patient ID from the input field
+        selected_id = self.analysis_patient_id.currentText().strip()
         
+        if selected_id and 'patient_id' in self.df.columns:
+            # Filter specifically for the chosen patient to analyze their unique trends
+            working_df = self.df[self.df['patient_id'].astype(str) == selected_id].copy()
+            analysis_scope = f"Patient {selected_id}"
+        else:
+            # Fallback to the current filtered view or full dataset
+            working_df = self.filtered_df if (self.filtered_df is not None and not self.filtered_df.empty) else self.df
+            analysis_scope = "Global Dataset"
+        # --- SINGLE PATIENT LOGIC END ---
+
+        if working_df.empty:
+            QMessageBox.warning(self, "No Data", f"No records found for {analysis_scope}.")
+            return
+
         if col1 not in working_df.columns or col2 not in working_df.columns:
             available_cols = list(working_df.columns)
             QMessageBox.warning(self, "Invalid Columns", 
@@ -630,88 +936,123 @@ class HealthcareApp(QMainWindow):
                 return
 
             valid_data = working_df[[col1, col2]].dropna()
-            if len(valid_data) == 0:
-                QMessageBox.warning(self, "No Data", "No valid data points available for correlation analysis.")
+            
+            # Check if there are enough points for a correlation (need at least 2)
+            if len(valid_data) < 2:
+                QMessageBox.warning(self, "Insufficient Data", f"Not enough data points for {analysis_scope} to compute correlation.")
                 return
 
             self.analysis_ax.clear()
-            valid_data.plot.scatter(x=col1, y=col2, ax=self.analysis_ax)
+            
+            # Use a colored scatter plot for better visibility in analysis
+            valid_data.plot.scatter(x=col1, y=col2, ax=self.analysis_ax, color='#2ECC71', alpha=0.7)
+            
             corr_value = valid_data[col1].corr(valid_data[col2])
-            self.analysis_ax.set_title(f'Scatter: {col1} vs {col2} (corr={corr_value:.2f})')
+            
+            # Update title to reflect the single patient focus
+            self.analysis_ax.set_title(f'{analysis_scope}: {col1} vs {col2}\n(Correlation = {corr_value:.2f})')
+            self.analysis_ax.grid(True, linestyle='--', alpha=0.6)
+            
             self.analysis_canvas.draw()
-            self.analysis_status_label.setText(f"Correlation between {col1} and {col2}: {corr_value:.2f}")
+            self.analysis_status_label.setText(f"Scope: {analysis_scope} | Corr: {corr_value:.2f}")
+            
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to compute correlation: {str(e)}")
             import traceback
             traceback.print_exc()
 
     def show_heatmap(self):
+        """Displays a density heatmap between the two selected metrics with a trend line."""
         if self.df is None or self.df.empty:
-            QMessageBox.warning(self, "No Data", "Please load data before showing heatmap.")
+            QMessageBox.warning(self, "No Data", "Please load data first.")
             return
 
+        # Get specific metric selections
+        col1 = self.metric1_dropdown.currentText()
+        col2 = self.metric2_dropdown.currentText()
+
+        if not col1 or not col2 or col1 == col2:
+            QMessageBox.warning(self, "Selection Error", "Please select two different metrics to correlate.")
+            return
+
+        # --- SINGLE PATIENT LOGIC START ---
+        # Get selected patient ID from the input field
+        selected_id = self.analysis_patient_id.currentText().strip()
+        
+        if selected_id and 'patient_id' in self.df.columns:
+            # Filter specifically for the chosen patient's history
+            source_df = self.df[self.df['patient_id'].astype(str) == selected_id].copy()
+            analysis_scope = f"Patient {selected_id}"
+        else:
+            # Fallback to the global dataset
+            source_df = self.df.copy()
+            analysis_scope = "Global Dataset"
+        # --- SINGLE PATIENT LOGIC END ---
+
         try:
+            # Clear the previous plot completely
             self.analysis_canvas.figure.clear()
             self.analysis_ax = self.analysis_canvas.figure.add_subplot(111)
 
-            working_df = (
-                self.filtered_df
-                if (self.filtered_df is not None and not self.filtered_df.empty)
-                else self.df
+            # Extract data and drop missing values from the chosen source
+            plot_df = source_df[[col1, col2]].dropna()
+
+            if plot_df.empty:
+                QMessageBox.warning(self, "No Data", f"No matching data points found for {analysis_scope}.")
+                return
+            
+            # For a single patient, a heatmap requires a bit more data to look meaningful
+            if len(plot_df) < 3:
+                QMessageBox.warning(self, "Insufficient History", 
+                                  f"{analysis_scope} only has {len(plot_df)} records. "
+                                  "Need at least 3 records to generate a density heatmap.")
+                return
+
+            # --- DENSITY HEATMAP (Hexbin) ---
+            # gridsize controls the hexagon size; for single patient data, we use a smaller grid
+            grid_size = 12 if len(plot_df) < 20 else 18
+            
+            hb = self.analysis_ax.hexbin(
+                plot_df[col1], 
+                plot_df[col2], 
+                gridsize=grid_size, 
+                cmap='YlOrRd', 
+                mincnt=1,
+                alpha=0.8
+            )
+            
+            # Add a colorbar
+            cb = self.analysis_canvas.figure.colorbar(hb, ax=self.analysis_ax)
+            cb.set_label('Record Frequency (Count)')
+
+            # --- REGRESSION LINE (Trend Line) ---
+            sns.regplot(
+                x=col1, 
+                y=col2, 
+                data=plot_df, 
+                ax=self.analysis_ax, 
+                scatter=False,  # Use Hexbin for density, hide dots
+                color='#2980B9', # Professional blue trend line
+                line_kws={'linewidth': 2.5, 'label': 'Linear Trend'}
             )
 
-            numerical_df = working_df.select_dtypes(include='number')
+            # Calculate correlation coefficient for this specific scope
+            corr_val = plot_df[col1].corr(plot_df[col2])
 
-            if numerical_df.empty:
-                QMessageBox.warning(
-                    self,
-                    "No Numerical Data",
-                    "No numerical columns available for heatmap."
-                )
-                return
+            # Formatting the plot
+            self.analysis_ax.set_title(f"{analysis_scope}: {col1} vs {col2}\nCorrelation (r) = {corr_val:.2f}", 
+                                      fontsize=11, fontweight='bold')
+            self.analysis_ax.set_xlabel(col1, fontweight='bold')
+            self.analysis_ax.set_ylabel(col2, fontweight='bold')
+            self.analysis_ax.legend()
+            self.analysis_ax.grid(True, linestyle=':', alpha=0.5)
 
-            if len(numerical_df.columns) < 2:
-                QMessageBox.warning(
-                    self,
-                    "Insufficient Data",
-                    "Need at least 2 numerical columns for correlation heatmap."
-                )
-                return
-
-            corr = numerical_df.corr()
-
-            if corr.empty:
-                QMessageBox.warning(
-                    self,
-                    "No Correlation",
-                    "Unable to compute correlation matrix."
-                )
-                return
-
-            sns.heatmap(
-                corr,
-                annot=True,
-                fmt=".2f",
-                cmap="coolwarm",
-                ax=self.analysis_ax,
-                square=True,
-                cbar_kws={"shrink": 0.7},
-            )
-
-            self.analysis_ax.set_title("Correlation Heatmap")
-            self.analysis_ax.set_box_aspect(0.8)
             self.analysis_canvas.figure.tight_layout()
             self.analysis_canvas.draw()
-            self.analysis_status_label.setText("Correlation heatmap displayed.")
+            self.analysis_status_label.setText(f"Heatmap generated for {analysis_scope}.")
 
         except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Error",
-                f"Failed to display heatmap: {str(e)}"
-            )
-            import traceback
-            traceback.print_exc()
+            QMessageBox.critical(self, "Error", f"Heatmap failed: {str(e)}")
 
     def create_spectrum_panel(self):
         panel = QWidget()
@@ -721,24 +1062,54 @@ class HealthcareApp(QMainWindow):
         title = QLabel("Spectrum Analysis")
         title.setObjectName("PanelTitle")
         main_layout.addWidget(title)
+
+        # --- Patient Selection Header ---
+        patient_header = QGroupBox("Single Patient Focus")
+        patient_header_layout = QHBoxLayout(patient_header)
         
+        patient_header_layout.addWidget(QLabel("Select Patient ID:"))
+        self.spectrum_patient_id = QComboBox()
+        self.spectrum_patient_id.setEditable(True)
+        # Connect to the update logic
+        self.spectrum_patient_id.currentTextChanged.connect(self._update_spectrum_for_patient)
+        patient_header_layout.addWidget(self.spectrum_patient_id, 1)
+        
+        refresh_ids_btn = QPushButton("Refresh List")
+        refresh_ids_btn.clicked.connect(self._refresh_spectrum_ids)
+        patient_header_layout.addWidget(refresh_ids_btn)
+        
+        main_layout.addWidget(patient_header) # Use main_layout, not layout
+        
+        # --- Signal Loading & Selection Group ---
         signal_loading_group = QGroupBox("Signal Loading & Selection")
-        signal_loading_group.setStyleSheet("QGroupBox { font-weight: bold; font-size: 12px; }")
         signal_loading_layout = QHBoxLayout(signal_loading_group)
         signal_loading_layout.setSpacing(15)
-        
-        if self.df is not None and not self.df.empty:
-            numeric_cols = self.df.select_dtypes(include='number').columns.tolist()
-        else:
-            numeric_cols = []
         
         signal_loading_layout.addWidget(QLabel("Biomedical Signal:"))
         self.signal_dropdown = QComboBox()
         self.signal_dropdown.setObjectName("BiomedicalSignalDropdown")
-        self.signal_dropdown.addItems(numeric_cols if numeric_cols else [])
+        
+        # Define signal targets
+        biomed_targets = ["ECG", "EEG"]
+        biomed_options = []
+
+        if self.df is not None and not self.df.empty:
+            # Check which of the target signals exist in the dataframe (case-insensitive)
+            biomed_options = [col for col in self.df.columns if any(t in col.upper() for t in biomed_targets)]
+        
+        # If the dataset doesn't have them, use defaults so the app doesn't crash
+        if not biomed_options:
+            biomed_options = biomed_targets
+            
+        # Now this line will work because 'biomed_options' is defined above
+        self.signal_dropdown.addItems(biomed_options)
+        # --- END OF FIX ---
+
         self.signal_dropdown.setMinimumWidth(200)
-        self.signal_dropdown.setToolTip("Select a signal column from the dataset (e.g., ECG, EEG data)")
         signal_loading_layout.addWidget(self.signal_dropdown)
+
+        self.signal_dropdown.addItems(biomed_options)
+        self.signal_dropdown.setMinimumWidth(200)
         
         self.plot_signal_btn = QPushButton("Load & Display Signal")
         self.plot_signal_btn.setObjectName("LoadDisplaySignalButton")
@@ -750,7 +1121,6 @@ class HealthcareApp(QMainWindow):
         main_layout.addWidget(signal_loading_group)
 
         raw_signal_group = QGroupBox("Raw Signal Display (Scrollable)")
-        raw_signal_group.setStyleSheet("QGroupBox { font-weight: bold; font-size: 12px; }")
         raw_signal_layout = QVBoxLayout(raw_signal_group)
         
         self.raw_signal_canvas = FigureCanvas(Figure(figsize=(12, 4)))
@@ -766,7 +1136,6 @@ class HealthcareApp(QMainWindow):
         main_layout.addWidget(raw_signal_group)
 
         fft_controls_group = QGroupBox("FFT Spectrum Analysis")
-        fft_controls_group.setStyleSheet("QGroupBox { font-weight: bold; font-size: 12px; }")
         fft_controls_layout = QVBoxLayout(fft_controls_group)
         
         segment_controls = QHBoxLayout()
@@ -814,7 +1183,6 @@ class HealthcareApp(QMainWindow):
         main_layout.addWidget(fft_controls_group)
 
         visualization_controls_group = QGroupBox("Visualization Controls")
-        visualization_controls_group.setStyleSheet("QGroupBox { font-weight: bold; font-size: 12px; }")
         viz_controls_layout = QHBoxLayout(visualization_controls_group)
         viz_controls_layout.setSpacing(15)
         
@@ -871,7 +1239,6 @@ class HealthcareApp(QMainWindow):
         main_layout.addWidget(visualization_controls_group)
 
         fft_display_group = QGroupBox("FFT Power Spectrum")
-        fft_display_group.setStyleSheet("QGroupBox { font-weight: bold; font-size: 12px; }")
         fft_display_layout = QVBoxLayout(fft_display_group)
         
         self.spectrum_canvas = FigureCanvas(Figure(figsize=(12, 5)))
@@ -882,68 +1249,146 @@ class HealthcareApp(QMainWindow):
         main_layout.addWidget(fft_display_group)
 
         return panel
+        
+    def _refresh_spectrum_ids(self):
+        """Populates the spectrum ID list from the main dataframe."""
+        if self.df is not None and 'patient_id' in self.df.columns:
+            # Get unique IDs, sort them, and convert to string for the ComboBox
+            ids = sorted(self.df['patient_id'].unique().astype(str))
+            self.spectrum_patient_id.clear()
+            self.spectrum_patient_id.addItems(ids)
+
+    def _update_spectrum_for_patient(self):
+        """Triggered when the patient ID selection changes."""
+        # Optional: Clear the graph when changing patients
+        self.figure.clear()
+        self.canvas.draw()
+
+    def _get_selected_patient_signal(self, col_name):
+        """Helper to extract signal data for the specific patient selected."""
+        selected_id = self.spectrum_patient_id.currentText().strip()
+        if not selected_id or self.df is None:
+            return None
+
+        # Filter global df for the specific patient
+        patient_data = self.df[self.df['patient_id'].astype(str) == selected_id]
+        
+        if patient_data.empty:
+            return None
+            
+        # Extract signal string from the most recent record
+        signal_str = str(patient_data.iloc[-1][col_name])
+        try:
+            # Parse CSV string into numeric array
+            return np.array([float(x) for x in signal_str.split(',') if x.strip()])
+        except Exception:
+            return None
 
     def plot_raw_signal(self):
+        # 1. Check if global data exists
         if self.df is None or self.df.empty:
-            QMessageBox.warning(self, "No Data", "Please load data before plotting signal.")
+            QMessageBox.warning(self, "No Data", "Please load a dataset containing ECG/EEG data first.")
             return
 
+        # 2. Get the selected Patient ID from the new input field
+        selected_patient_id = self.spectrum_patient_id.currentText().strip()
+        if not selected_patient_id:
+            QMessageBox.warning(self, "Selection Required", "Please select or enter a Patient ID first.")
+            return
+
+        # 3. Get the signal column selection
         col = self.signal_dropdown.currentText()
         if not col:
-            QMessageBox.warning(self, "No Selection", "Please select a signal column.")
-            return
-
-        if col not in self.df.columns:
-            QMessageBox.warning(self, "Invalid Column", f"Column '{col}' does not exist in the dataset.")
+            QMessageBox.warning(self, "Invalid Selection", "Please select a valid Biomedical Signal column.")
             return
 
         try:
-            if not pd.api.types.is_numeric_dtype(self.df[col]):
-                QMessageBox.warning(self, "Invalid Column", f"Column '{col}' is not numeric.")
+            # 4. Filter data for the SPECIFIC patient
+            # We convert patient_id to string to ensure matching works regardless of type
+            patient_data = self.df[self.df['patient_id'].astype(str) == selected_patient_id]
+            
+            if patient_data.empty:
+                QMessageBox.warning(self, "No Patient Found", f"No records found for Patient ID: {selected_patient_id}")
                 return
 
-            signal = self.df[col].dropna().values
+            # Get the signal data from the most recent record for this patient
+            raw_signal_data = patient_data.iloc[-1][col]
+
+            # 5. Handle Signal Conversion 
+            # (If the data is stored as a CSV string "0.1,0.2...", convert to numpy array)
+            if isinstance(raw_signal_data, str):
+                signal = np.array([float(x) for x in raw_signal_data.split(',') if x.strip()])
+            else:
+                signal = np.array(raw_signal_data)
+
             if len(signal) == 0:
-                QMessageBox.warning(self, "No Data", f"Column '{col}' contains no valid data.")
+                QMessageBox.warning(self, "Empty Signal", f"The signal for patient {selected_patient_id} contains no data.")
                 return
 
+            # 6. UI Plotting
             self.raw_signal_ax.clear()
-            self.raw_signal_ax.plot(signal, color='#3498DB', linewidth=1)
-            self.raw_signal_ax.set_title(f"Raw Signal: {col} ({len(signal)} samples)", fontsize=12, fontweight='bold')
-            self.raw_signal_ax.set_xlabel("Sample Index", fontsize=10)
-            self.raw_signal_ax.set_ylabel(col, fontsize=10)
-            self.raw_signal_ax.grid(True, linestyle='--', alpha=0.5)
+            self.raw_signal_ax.plot(signal, color='#27AE60', linewidth=1)
+            self.raw_signal_ax.set_title(f"Patient {selected_patient_id}: Raw {col} Signal", fontsize=12, fontweight='bold')
+            self.raw_signal_ax.set_xlabel("Time (Samples)", fontsize=10)
+            self.raw_signal_ax.set_ylabel("Amplitude", fontsize=10)
+            self.raw_signal_ax.grid(True, linestyle=':', alpha=0.6)
+            
             self.raw_signal_canvas.figure.tight_layout()
             self.raw_signal_canvas.draw()
             
+            # 7. Update Sliders for this specific patient's signal length
             max_samples = len(signal)
-            self.segment_start_slider.setRange(0, max_samples - 1)
-            self.segment_end_slider.setRange(10, max_samples)
-            self.segment_end_slider.setValue(min(100, max_samples))
-            self.segment_end_label.setText(str(min(100, max_samples)))
+            self.segment_start_slider.setRange(0, max_samples - 2)
+            self.segment_end_slider.setRange(2, max_samples)
+            
+            default_end = min(500, max_samples)
+            self.segment_end_slider.setValue(default_end)
+            if hasattr(self, 'segment_end_label'):
+                self.segment_end_label.setText(str(default_end))
+
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to plot signal: {str(e)}")
+            QMessageBox.critical(self, "Plotting Error", f"An error occurred while rendering the patient signal: {str(e)}")
 
     def plot_fft(self):
+        # 1. Check if global data exists
         if self.df is None or self.df.empty:
             QMessageBox.warning(self, "No Data", "Please load data before computing FFT.")
             return
 
-        col = self.signal_dropdown.currentText()
-        if not col:
-            QMessageBox.warning(self, "No Selection", "Please select a signal column.")
+        # 2. Get the selected Patient ID from the input field
+        selected_patient_id = self.spectrum_patient_id.currentText().strip()
+        if not selected_patient_id:
+            QMessageBox.warning(self, "Selection Required", "Please select or enter a Patient ID first.")
             return
 
-        if col not in self.df.columns:
-            QMessageBox.warning(self, "Invalid Column", f"Column '{col}' does not exist in the dataset.")
+        # 3. Get the signal column selection
+        col = self.signal_dropdown.currentText()
+        if not col or not any(key in col.upper() for key in ['ECG', 'EEG']):
+            QMessageBox.warning(self, "Invalid Signal", "FFT Analysis can only be performed on Biomedical Signals (ECG/EEG).")
             return
 
         try:
-            signal = self.df[col].dropna().values
-            if len(signal) == 0:
-                QMessageBox.warning(self, "No Data", f"Column '{col}' contains no valid data.")
+            # 4. Filter data for the SPECIFIC patient
+            patient_data = self.df[self.df['patient_id'].astype(str) == selected_patient_id]
+            
+            if patient_data.empty:
+                QMessageBox.warning(self, "No Patient Found", f"No records found for Patient ID: {selected_patient_id}")
                 return
 
+            # Get signal string from the most recent record
+            raw_signal_data = patient_data.iloc[-1][col]
+
+            # 5. Convert string to numeric array (handling the database format)
+            if isinstance(raw_signal_data, str):
+                signal = np.array([float(x) for x in raw_signal_data.split(',') if x.strip()])
+            else:
+                signal = np.array(raw_signal_data)
+
+            if len(signal) == 0:
+                QMessageBox.warning(self, "No Data", f"The signal for patient {selected_patient_id} contains no data.")
+                return
+
+            # 6. Apply Segment logic based on sliders
             start_idx = self.segment_start_slider.value()
             end_idx = self.segment_end_slider.value()
             
@@ -958,23 +1403,31 @@ class HealthcareApp(QMainWindow):
                 QMessageBox.warning(self, "Insufficient Data", "Selected segment must contain at least 2 samples.")
                 return
             
+            # 7. Compute FFT
             freq = np.fft.rfftfreq(n, d=1.0)
             fft_vals = np.abs(np.fft.rfft(signal_segment))
             power_spectrum = 2.0/n * fft_vals
 
+            # 8. UI Plotting
             self.spectrum_ax.clear()
             self.spectrum_ax.plot(freq, power_spectrum, color='#E74C3C', linewidth=1.5)
-            self.spectrum_ax.set_title(f"FFT Power Spectrum: {col} (Samples {start_idx}-{end_idx}, n={n})", 
+            
+            # Updated title to include Patient ID
+            self.spectrum_ax.set_title(f"FFT Spectrum: Patient {selected_patient_id} ({col})", 
                                       fontsize=12, fontweight='bold')
             self.spectrum_ax.set_xlabel("Frequency (cycles/sample)", fontsize=10)
             self.spectrum_ax.set_ylabel("Amplitude", fontsize=10)
             self.spectrum_ax.grid(True, linestyle='--', alpha=0.5)
+            
+            # Apply user-defined limits from UI inputs
             self.spectrum_ax.set_xlim(self.freq_min_input.value(), self.freq_max_input.value())
             self.spectrum_ax.set_ylim(self.amp_min_input.value(), self.amp_max_input.value())
+            
             self.spectrum_canvas.figure.tight_layout()
             self.spectrum_canvas.draw()
+            
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to compute FFT: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to compute FFT for patient {selected_patient_id}: {str(e)}")
 
     def apply_fft_zoom(self):
         if hasattr(self, 'spectrum_ax') and len(self.spectrum_ax.lines) > 0:
@@ -1031,6 +1484,7 @@ class HealthcareApp(QMainWindow):
         controls_layout = QHBoxLayout()
         
         self.load_image_btn = QPushButton("Upload Image")
+        self.load_image_btn.setObjectName("UploadImageButton")
         self.load_image_btn.setToolTip("Load X-ray, MRI, or CT scan image.")
         self.load_image_btn.clicked.connect(self.load_image)
         controls_layout.addWidget(self.load_image_btn)
@@ -1078,11 +1532,9 @@ class HealthcareApp(QMainWindow):
         separator = QFrame()
         separator.setFrameShape(QFrame.HLine)
         separator.setFrameShadow(QFrame.Sunken)
-        separator.setStyleSheet("color: #ccc; margin: 10px 0;")
         layout.addWidget(separator)
 
         image_comparison_label = QLabel("Image Comparison")
-        image_comparison_label.setStyleSheet("font-weight: bold; font-size: 12px; padding: 5px;")
         layout.addWidget(image_comparison_label)
 
         # Display images side by side - Original on LEFT, Processed on RIGHT
@@ -1091,51 +1543,43 @@ class HealthcareApp(QMainWindow):
         
         # Left side - Original Image
         original_container = QWidget()
+        original_container.setObjectName("OriginalImageContainer")
         original_container_layout = QVBoxLayout(original_container)
         original_container_layout.setSpacing(5)
         
         original_title = QLabel("Original Image")
         original_title.setAlignment(Qt.AlignCenter)
-        original_title.setStyleSheet("font-weight: bold; font-size: 11px; color: #333;")
         original_container_layout.addWidget(original_title)
         
         self.original_image_label = QLabel("No image loaded")
         self.original_image_label.setAlignment(Qt.AlignCenter)
         self.original_image_label.setObjectName("ImageDisplayLabelOriginal")
         self.original_image_label.setFixedSize(500, 500)
-        self.original_image_label.setStyleSheet("""
-            QLabel {
-                border: 2px solid #3498DB;
-                border-radius: 5px;
-                background-color: #f0f0f0;
-                color: #888;
-            }
-        """)
         original_container_layout.addWidget(self.original_image_label)
         self.image_layout.addWidget(original_container)
         
+        # Vertical divider between images
+        divider = QFrame()
+        divider.setFrameShape(QFrame.VLine)
+        divider.setFrameShadow(QFrame.Sunken)
+        divider.setObjectName("ImageDivider")
+        divider.setMaximumWidth(3)
+        self.image_layout.addWidget(divider)
+        
         # Right side - Processed Image
         processed_container = QWidget()
+        processed_container.setObjectName("ProcessedImageContainer")
         processed_container_layout = QVBoxLayout(processed_container)
         processed_container_layout.setSpacing(5)
         
         processed_title = QLabel("Processed Image")
         processed_title.setAlignment(Qt.AlignCenter)
-        processed_title.setStyleSheet("font-weight: bold; font-size: 11px; color: #333;")
         processed_container_layout.addWidget(processed_title)
         
         self.processed_image_label = QLabel("No processed image")
         self.processed_image_label.setAlignment(Qt.AlignCenter)
         self.processed_image_label.setObjectName("ImageDisplayLabelProcessed")
         self.processed_image_label.setFixedSize(500, 500)
-        self.processed_image_label.setStyleSheet("""
-            QLabel {
-                border: 2px solid #2ECC71;
-                border-radius: 5px;
-                background-color: #f0f0f0;
-                color: #888;
-            }
-        """)
         processed_container_layout.addWidget(self.processed_image_label)
         self.image_layout.addWidget(processed_container)
         
@@ -1143,7 +1587,6 @@ class HealthcareApp(QMainWindow):
         
         info_label = QLabel("Note: Images are scaled to fit the display area. Original image is shown on the left, processed result on the right for easy comparison.")
         info_label.setWordWrap(True)
-        info_label.setStyleSheet("color: #666; font-size: 10px; padding: 5px;")
         info_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(info_label)
 
@@ -1166,7 +1609,15 @@ class HealthcareApp(QMainWindow):
             # Display processed image on the RIGHT side (initially same as original)
             self.display_image(self.processed_cv_image, self.processed_image_label)
             
-            QMessageBox.information(self, "Image Loaded", f"Image loaded successfully from {os.path.basename(file_path)}")
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.Information)
+            msg_box.setWindowTitle("Image Loaded")
+            msg_box.setText(f"Image loaded successfully from {os.path.basename(file_path)}")
+            msg_box.setStandardButtons(QMessageBox.Ok)
+            ok_button = msg_box.button(QMessageBox.Ok)
+            if ok_button:
+                ok_button.setObjectName("SuccessMessageButton")
+            msg_box.exec_()
 
     def display_image(self, cv_img, label):
         if cv_img is None:
@@ -1302,61 +1753,71 @@ class HealthcareApp(QMainWindow):
         self.canvas.draw()
 
 
-# --- Panel 5: Visualization ---
     def create_data_visualization_panel(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
 
+        # Identify numerical columns for initial population
+        cols = []
+        if self.df is not None and not self.df.empty:
+            cols = self.df.select_dtypes(include=['number']).columns.tolist()
+
         title = QLabel("Data Visualization")
         title.setObjectName("PanelTitle")
-        # REMOVED: title.setStyleSheet("...")
         layout.addWidget(title)
         
         controls_group = QWidget()
         controls_group_layout = QGridLayout(controls_group)
         
-        if self.df is not None and not self.df.empty:
-            numerical_cols = self.df.select_dtypes(include=np.number).columns.tolist()
-        else:
-            numerical_cols = []
-
-        # Scatter Plot Controls
-        self.scatter_x_combo = QComboBox(); self.scatter_x_combo.addItems(numerical_cols if numerical_cols else [])
+        # --- Scatter Plot Controls ---
+        self.scatter_x_combo = QComboBox()
         self.scatter_x_combo.setObjectName("VizScatterX")
-        self.scatter_y_combo = QComboBox(); self.scatter_y_combo.addItems(numerical_cols if numerical_cols else [])
+        self.scatter_x_combo.addItems(cols)
+        
+        self.scatter_y_combo = QComboBox()
         self.scatter_y_combo.setObjectName("VizScatterY")
+        self.scatter_y_combo.addItems(cols)
+        
         self.scatter_plot_btn = QPushButton("Plot Scatter")
         self.scatter_plot_btn.setObjectName("VizScatterBtn")
         self.scatter_plot_btn.setToolTip("Plots relationship between two selected variables.")
         self.scatter_plot_btn.clicked.connect(self.plot_scatter)
         
-        controls_group_layout.addWidget(QLabel("Scatter X:"), 0, 0); controls_group_layout.addWidget(self.scatter_x_combo, 0, 1)
-        controls_group_layout.addWidget(QLabel("Scatter Y:"), 0, 2); controls_group_layout.addWidget(self.scatter_y_combo, 0, 3)
+        controls_group_layout.addWidget(QLabel("Scatter X:"), 0, 0)
+        controls_group_layout.addWidget(self.scatter_x_combo, 0, 1)
+        controls_group_layout.addWidget(QLabel("Scatter Y:"), 0, 2)
+        controls_group_layout.addWidget(self.scatter_y_combo, 0, 3)
         controls_group_layout.addWidget(self.scatter_plot_btn, 0, 4)
 
-        # Time-Series Plot Controls
-        self.ts_column_combo = QComboBox(); self.ts_column_combo.addItems(numerical_cols if numerical_cols else [])
+        # --- Time-Series Plot Controls ---
+        self.ts_column_combo = QComboBox()
         self.ts_column_combo.setObjectName("VizTSCombo")
+        self.ts_column_combo.addItems(cols)
+        
         self.ts_plot_btn = QPushButton("Plot Time-Series")
         self.ts_plot_btn.setObjectName("VizTimeSeriesBtn")
         self.ts_plot_btn.setToolTip("Plots the value of a variable over index/time.")
         self.ts_plot_btn.clicked.connect(self.plot_time_series)
         
-        controls_group_layout.addWidget(QLabel("Time-Series:"), 1, 0); controls_group_layout.addWidget(self.ts_column_combo, 1, 1, 1, 3)
+        controls_group_layout.addWidget(QLabel("Time-Series:"), 1, 0)
+        controls_group_layout.addWidget(self.ts_column_combo, 1, 1, 1, 3)
         controls_group_layout.addWidget(self.ts_plot_btn, 1, 4)
 
-        # FFT Spectrum Plot Controls
-        self.fft_column_combo = QComboBox(); self.fft_column_combo.addItems(numerical_cols if numerical_cols else [])
+        # --- FFT Spectrum Plot Controls ---
+        self.fft_column_combo = QComboBox()
         self.fft_column_combo.setObjectName("VizFFTCombo")
+        self.fft_column_combo.addItems(cols)
+        
         self.fft_plot_btn = QPushButton("Plot FFT Spectrum")
         self.fft_plot_btn.setObjectName("VizFFTBtn")
         self.fft_plot_btn.setToolTip("Displays the frequency components of a signal.")
         self.fft_plot_btn.clicked.connect(self.plot_fft_viz) 
         
-        controls_group_layout.addWidget(QLabel("FFT Spectrum:"), 2, 0); controls_group_layout.addWidget(self.fft_column_combo, 2, 1, 1, 3)
+        controls_group_layout.addWidget(QLabel("FFT Spectrum:"), 2, 0)
+        controls_group_layout.addWidget(self.fft_column_combo, 2, 1, 1, 3)
         controls_group_layout.addWidget(self.fft_plot_btn, 2, 4)
         
-        # Heatmap Button
+        # --- Heatmap Button ---
         self.heatmap_btn = QPushButton("Show Correlation Heatmap")
         self.heatmap_btn.setObjectName("VizHeatmapBtn")
         self.heatmap_btn.setToolTip("Visualize correlations between all numerical variables.")
@@ -1365,12 +1826,10 @@ class HealthcareApp(QMainWindow):
 
         layout.addWidget(controls_group)
         
-        # Plot area wrapped in scroll area so visualization heatmaps/plots are fully visible
-        # Reduced default size so the map looks more compact and balanced
+        # --- Matplotlib Canvas Section ---
         self.figure = Figure(figsize=(10, 8))
         self.canvas = FigureCanvas(self.figure)
-        self.figure.subplots_adjust(left=0.15, right=0.85, top=0.8, bottom=0.2)
-        # More compact minimum height; scroll still available for larger plots
+        self.figure.subplots_adjust(left=0.15, right=0.85, top=0.9, bottom=0.15)
         self.canvas.setMinimumHeight(620)
 
         viz_scroll = QScrollArea()
@@ -1380,6 +1839,7 @@ class HealthcareApp(QMainWindow):
         viz_scroll.setWidget(self.canvas)
         layout.addWidget(viz_scroll)
         
+        # Optional Placeholder for static images
         self.viz_image_label = QLabel("Image Visualization Placeholder")
         self.viz_image_label.setAlignment(Qt.AlignCenter)
         self.viz_image_label.setFixedSize(900, 180) 

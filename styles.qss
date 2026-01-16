@@ -1,555 +1,225 @@
-/* ======================================= */
-/* GLOBAL APPLICATION STYLES */
-/* ======================================= */
+/* ============================================================ */
+/* 1. GLOBAL APPLICATION STYLES                                 */
+/* ============================================================ */
 QMainWindow {
-    background-color: #F8F8F8; /* Main window background */
+    background-color: #F5F7FA;
 }
 
-QWidget { 
-    font-family: Arial; 
+QWidget {
+    font-family: 'Segoe UI', Arial, sans-serif;
     font-size: 10pt;
-    color: #333333; /* Default text color (Dark Gray) */
+    color: #1E293B;
 }
 
-/* --------------------------------------- */
-/* HEADINGS AND TITLES */
-/* --------------------------------------- */
-/* Targets all QLabels with the object name "PanelTitle" (e.g., "Data Loading and Management") */
-QLabel#PanelTitle {
-    font-size: 20px; 
-    font-weight: bold; 
-    color: #1F497D; /* Dark Blue Header Color */
-    margin-bottom: 15px;
-    padding-top: 10px;
+/* Container and Scroll backgrounds */
+QScrollArea, QTabWidget, QScrollArea > QWidget > QWidget {
+    background-color: #F5F7FA;
+    border: none;
 }
 
-
-/* --------------------------------------- */
-/* SIDEBAR NAVIGATION */
-/* --------------------------------------- */
-/* Sidebar Container */
-#SidebarWidget { 
-    background-color: #EBEFF4; /* Secondary background color */
-    border-right: 1px solid #DDDDDD;
-}
-
-/* Sidebar Buttons */
-#SidebarWidget QPushButton { 
-    background-color: #3498DB; /* Accent Color */
-    color: white; 
-    padding: 12px; 
-    border-radius: 5px; 
-    margin: 5px 10px;
-}
-
-#SidebarWidget QPushButton:hover { 
-    background-color: #6CB4EE; /* Light Blue Hover */
-}
-
-
-/* --------------------------------------- */
-/* DATA MANAGEMENT PANEL (CRUD) */
-/* --------------------------------------- */
-/* CRUD Group Box */
-#DbOpsGroup {
-    background-color: #EBEFF4; 
-    padding: 10px; 
-    border-radius: 5px;
-}
-QLineEdit#PatientIDInput {
-    background-color: #FFFFFF; /* White */
-}
-
-/* Pop-up dialogs */
-QMessageBox, QInputDialog {
-    background-color: white;
-    color: black;
-}
-QMessageBox QLabel, QInputDialog QLabel {
-    color: black;
-}
-QMessageBox QPushButton, QInputDialog QPushButton {
-    background-color: white;
-    color: black;
-    border: 1px solid #bfbfbf;
-    padding: 4px 10px;
-}
-
-/* Inputs (including those inside popups) */
-QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QTextEdit, QPlainTextEdit {
-    background-color: transparent;
-    color: black;
-    border: 1px solid #bfbfbf;
-    padding: 2px 4px;
-}
-QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled,
-QTextEdit:disabled, QPlainTextEdit:disabled {
-    color: #555555;
-}
-
-/* Dropdown list view for combo boxes */
-QComboBox QAbstractItemView {
-    background-color: white;
-    color: black;
-    border: 1px solid #bfbfbf;
-}
-QComboBox QAbstractItemView::item {
-    background-color: white;
-    color: black;
-    padding: 4px 8px;
-}
-QComboBox QAbstractItemView::item:selected {
-    background-color: #e6f2ff; /* light blue highlight */
-    color: black;
-}
-
-/* Data Loading Buttons - Match Sidebar Style */
-QPushButton#LoadCSVButton, QPushButton#RefreshTableButton {
-    background-color: #3498DB; /* Accent Color - matches sidebar */
-    color: white;
-    padding: 8px 16px;
-    border-radius: 5px;
-    margin: 5px 5px 5px 0px;
+/* ============================================================ */
+/* 2. TEXT HIERARCHY & TITLES                                   */
+/* ============================================================ */
+QLabel[objectName="PanelTitle"] {
+    color: #1E293B;
     font-weight: bold;
-    min-width: 120px;
-}
-QPushButton#LoadCSVButton:hover, QPushButton#RefreshTableButton:hover {
-    background-color: #6CB4EE; /* Light Blue Hover - matches sidebar */
+    font-size: 20px;
+    margin-bottom: 10px;
 }
 
-/* Insert Button - Add border radius */
-QPushButton#InsertButton {
-    background-color: #2ECC71; 
-    color: white;
+QGroupBox {
+    background-color: #FFFFFF;
+    color: #1E293B;
+    border: 1px solid #D6DEE8;
+    border-radius: 6px;
+    margin-top: 15px;
+    padding-top: 15px;
+}
+
+QGroupBox::title {
+    color: #1E293B;
     font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 16px;
-    border-color: #2ECC71;
-    border-radius: 5px;
-}
-QPushButton#InsertButton:hover {
-    background-color: #58D683;
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 8px;
 }
 
-/* Delete Button - Add border radius */
-QPushButton#DeleteButton {
-    background-color: #E74C3C; 
+QLabel {
+    color: #475569;
+}
+
+QLineEdit::placeholder {
+    color: #94A3B8;
+}
+
+/* ============================================================ */
+/* 3. INPUT FIELDS                                              */
+/* ============================================================ */
+QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QDateTimeEdit {
+    background-color: #F8FAFC;
+    border: 1px solid #D6DEE8;
+    border-radius: 4px;
+    padding: 6px;
+    color: #1E293B;
+}
+
+QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+    border: 1px solid #3498DB;
+}
+
+#dateInput {
+    background-color: #FFFFFF;
+    border: 2px solid #3498DB;
+    border-radius: 5px;
+    padding: 5px;
+    color: #2C3E50;
+    font-size: 14px;
+}
+
+#dateInput:focus {
+    border: 2px solid #2ECC71;
+}
+
+/* ============================================================ */
+/* 4. SIDEBAR NAVIGATION                                        */
+/* ============================================================ */
+#SidebarWidget {
+    background-color: #1F3A5F;
+}
+
+#SidebarWidget QPushButton {
+    background-color: #090633;
     color: white;
-    font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 16px;
-    border-color: #E74C3C;
-    border-radius: 5px;
-}
-QPushButton#DeleteButton:hover {
-    background-color: #EC7063;
+    border: none;
+    border-radius: 8px;
+    text-align: left;
+    padding: 12px;
+    margin: 4px 10px;
 }
 
-/* Update Button - Reduced size with color, matching Delete button height */
-QPushButton#UpdateButton {
-    background-color: #F39C12; /* Orange color */
-    color: white;
-    font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 10px; /* Match Delete button height (8px vertical), reduced width */
-    border-color: #F39C12;
-    border-radius: 5px;
-    min-width: 80px;
-}
-QPushButton#UpdateButton:hover {
-    background-color: #F7B731;
+#SidebarWidget QPushButton:hover {
+    background-color: #2F5D8A;
 }
 
-/* Previous/Next Page Buttons - Circular with arrows */
-QPushButton#PreviousPageButton, QPushButton#NextPageButton {
-    background-color: white;
-    color: black;
-    border-style: solid; 
-    border-width: 1px;
-    border-color: #CCCCCC;
-    border-radius: 20px; /* Perfect circle - half of width/height */
-    padding: 0px;
-    min-width: 40px;
-    max-width: 40px;
-    min-height: 40px;
-    max-height: 40px;
-    font-size: 16px;
-}
-QPushButton#PreviousPageButton:hover, QPushButton#NextPageButton:hover {
-    background-color: #6CB4EE; /* Light gray hover */
-    border-color: #999999;
-}
-QPushButton#PreviousPageButton:disabled, QPushButton#NextPageButton:disabled {
-    background-color: #F5F5F5; /* Light gray when disabled */
-    border-color: #DDDDDD;
-    color: #999999;
-}
-
-/* --------------------------------------- */
-/* QTABLEWIDGET (Loaded Data View) */
-/* --------------------------------------- */
-QTableWidget { 
-    background-color: white; 
-    color: #333333; /* Data cell font color */
-    gridline-color: #DDDDDD; 
-    border: 1px solid #BBBBBB;
-    selection-background-color: #A9CCE3; /* Light blue selection */
+/* ============================================================ */
+/* 5. DATA TABLE & SCROLLBARS                                   */
+/* ============================================================ */
+QTableWidget {
+    background-color: #FFFFFF;
+    gridline-color: #EDF2F7;
+    border: 1px solid #D6DEE8;
+    selection-background-color: #A9CCE3;
 }
 
 QHeaderView::section {
-    color: #1F497D; /* Header text color */
-    background-color: #EBEFF4;
+    color: #1F497D;
+    background-color: #F8FAFC;
     font-weight: bold;
-    padding: 5px;
-    border: 1px solid #DDDDDD;
+    padding: 8px;
+    border: 1px solid #E2E8F0;
 }
 
-
-/* --------------------------------------- */
-/* ANALYSIS PANEL GROUPS */
-/* --------------------------------------- */
-#FilterGroup, #CorrGroup {
-    background-color: #F0F3F6; /* Slightly darker than main background for separation */
-    padding: 10px; 
-    border-radius: 5px;
-    border: 1px solid #DDDDDD;
+#MainScrollArea {
+    background-color: #F5F7FA;
 }
 
-/* Health Data Analysis Tab Buttons */
-/* Apply & Plot Button */
-QPushButton#ApplyFilterButton {
-    background-color: #3498DB; /* Blue color */
+QScrollBar:vertical {
+    background: #2D2D2D;
+    width: 14px;
+    border: none;
+    margin: 0px;
+}
+
+QScrollBar::handle:vertical {
+    background: #555555;
+    min-height: 30px;
+    border-radius: 7px;
+    margin: 2px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #777777;
+}
+
+/* ============================================================ */
+/* 6. BUTTON STYLES (COLOR CODED)                               */
+/* ============================================================ */
+
+/* PRIMARY ACTION (BLUE) */
+QPushButton#LoadCSVButton, QPushButton#RefreshTableButton, QPushButton#ScatterPlotButton, 
+QPushButton#LoadDisplaySignalButton, QPushButton#ComputeFFTButton, QPushButton#ApplyZoomButton, 
+QPushButton#GrayscaleButton, QPushButton#ApplyBlurButton, QPushButton#CannyEdgeButton, 
+QPushButton#ApplyThresholdButton, QPushButton#VizScatterBtn, QPushButton#VizTimeSeriesBtn, 
+QPushButton#VizFFTBtn,QPushButton#saveButton, QPushButton#InsertButton, QPushButton#ApplyPlotButton, QPushButton#UploadImageButton {
+    background-color: #2F5D8A;
     color: white;
+    border: 1px solid #1F3A5F;
+    border-radius: 4px;
+    padding: 8px;
     font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 16px;
-    border-color: #3498DB;
-    border-radius: 5px;
-}
-QPushButton#ApplyFilterButton:hover {
-    background-color: #6CB4EE; /* Light blue hover */
 }
 
-/* Reset Filter Button */
-QPushButton#ResetFilterButton {
-    background-color: #95A5A6; /* Gray color */
+
+/* REFRESH (LIGHT BLUE) */
+QPushButton#refreshIdButton {
+    background-color: #3498DB;
     color: white;
+    border: 1px solid #2980B9;
+    border-radius: 6px;
     font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 16px;
-    border-color: #95A5A6;
-    border-radius: 5px;
-}
-QPushButton#ResetFilterButton:hover {
-    background-color: #BDC3C7; /* Light gray hover */
+    min-height: 30px;
 }
 
-/* Scatter Plot Button */
-QPushButton#ScatterPlotButton {
-    background-color: #16A085; /* Teal color */
+/* DANGER (RED) */
+QPushButton#DeleteButton, QPushButton#ResetButton, QPushButton#HeatmapButton, QPushButton#VizHeatmapBtn {
+    background-color: #E76F51;
     color: white;
+    border: 1px solid #D65F41;
+    border-radius: 4px;
+    padding: 8px;
     font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 16px;
-    border-color: #16A085;
-    border-radius: 5px;
-}
-QPushButton#ScatterPlotButton:hover {
-    background-color: #48C9B0; /* Light teal hover */
 }
 
-/* Heatmap Button */
-QPushButton#HeatmapButton {
-    background-color: #E67E22; /* Orange color */
-    color: white;
-    font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 16px;
-    border-color: #E67E22;
-    border-radius: 5px;
-}
-QPushButton#HeatmapButton:hover {
-    background-color: #F39C12; /* Light orange hover */
+/* PAGINATION */
+QPushButton#PreviousPageButton, QPushButton#NextPageButton {
+    background-color: white;
+    border: 1px solid #D6DEE8;
+    border-radius: 20px;
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 16px;
 }
 
-/* --------------------------------------- */
-/* IMAGE PROCESSING PANEL */
-/* --------------------------------------- */
-/* Original Image Border */
-QLabel#ImageDisplayLabelOriginal {
-    border: 3px solid #3498DB; /* Accent Color Border */
-    background-color: #DDDDDD;
+QPushButton#PreviousPageButton:hover, QPushButton#NextPageButton:hover {
+    background-color: #E2E8F0;
 }
 
-/* Processed Image Border */
-QLabel#ImageDisplayLabelProcessed {
-    border: 3px solid #E74C3C; /* Error Red Border */
-    background-color: #DDDDDD;
+/* ============================================================ */
+/* 7. IMAGE PROCESSING & SLIDERS                                */
+/* ============================================================ */
+QWidget#OriginalImageContainer { 
+    border: 3px solid #3498DB; 
+    border-radius: 8px; 
+    background-color: white; 
 }
 
-/* QSlider Handle Color */
+QWidget#ProcessedImageContainer { 
+    border: 3px solid #E74C3C; 
+    border-radius: 8px; 
+    background-color: white; 
+}
+
 QSlider::handle:horizontal {
     background: #3498DB;
-    border: 1px solid #3498DB;
-    width: 15px;
-    margin: -2px 0; /* center the handle vertically */
-    border-radius: 7px;
+    width: 16px;
+    height: 16px;
+    margin: -5px 0;
+    border-radius: 8px;
 }
 
 QSlider::groove:horizontal {
-    border: 1px solid #CCCCCC;
-    height: 5px;
-    background: #EEEEEE;
-    margin: 2px 0;
+    border: 1px solid #D6DEE8;
+    height: 6px;
+    background: #EDF2F7;
     border-radius: 3px;
-}
-
-/* Medical Image Processing Tab Buttons */
-/* Grayscale Conversion Button */
-QPushButton#GrayscaleButton {
-    background-color: #3498DB; /* Blue color */
-    color: white;
-    font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 16px;
-    border-color: #3498DB;
-    border-radius: 5px;
-}
-QPushButton#GrayscaleButton:hover {
-    background-color: #6CB4EE; /* Light blue hover */
-}
-
-/* Apply Blur Button */
-QPushButton#ApplyBlurButton {
-    background-color: #3498DB; /* Blue color */
-    color: white;
-    font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 16px;
-    border-color: #3498DB;
-    border-radius: 5px;
-}
-QPushButton#ApplyBlurButton:hover {
-    background-color: #6CB4EE; /* Light blue hover */
-}
-
-/* Canny Edge Detection Button */
-QPushButton#CannyEdgeButton {
-    background-color: #3498DB; /* Blue color */
-    color: white;
-    font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 16px;
-    border-color: #3498DB;
-    border-radius: 5px;
-}
-QPushButton#CannyEdgeButton:hover {
-    background-color: #6CB4EE; /* Light blue hover */
-}
-
-/* Apply Threshold Button */
-QPushButton#ApplyThresholdButton {
-    background-color: #3498DB; /* Blue color */
-    color: white;
-    font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 16px;
-    border-color: #3498DB;
-    border-radius: 5px;
-}
-QPushButton#ApplyThresholdButton:hover {
-    background-color: #6CB4EE; /* Light blue hover */
-}
-
-/* Gaussian Blur Dropdown - Add Border */
-QComboBox#BlurDropdown {
-    border: 1px solid rgb(0, 0, 0); /* Black border */
-    border-radius: 4px;
-}
-QComboBox#BlurDropdown:hover {
-    border-color: rgb(0, 0, 0); /* Black on hover */
-}
-QComboBox#BlurDropdown:focus {
-    border-color: rgb(0, 0, 0); /* Black when focused */
-}
-
-/* --------------------------------------- */
-/* SPECTRUM ANALYSIS TAB */
-/* --------------------------------------- */
-/* Load & Display Signal Button */
-QPushButton#LoadDisplaySignalButton {
-    background-color: #3498DB; /* Blue color */
-    color: white;
-    font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 16px;
-    border-color: #3498DB;
-    border-radius: 5px;
-}
-QPushButton#LoadDisplaySignalButton:hover {
-    background-color: #6CB4EE; /* Light blue hover */
-}
-
-/* Biomedical Signal Dropdown - Add Border */
-QComboBox#BiomedicalSignalDropdown {
-    border: 1px solid rgb(0, 0, 0); /* Blue border */
-    border-radius: 4px;
-    padding: 4px 8px;
-    background-color: white;
-}
-QComboBox#BiomedicalSignalDropdown:hover {
-    border-color:rgb(0, 0, 0); /* Light blue on hover */
-}
-QComboBox#BiomedicalSignalDropdown:focus {
-    border-color:rgb(0, 0, 0); /* Darker blue when focused */
-}
-
-/* Compute FFT Spectrum Button */
-QPushButton#ComputeFFTButton {
-    background-color: #3498DB; /* Red color */
-    color: white;
-    font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 16px;
-    border-color: #3498DB;
-    border-radius: 5px;
-}
-QPushButton#ComputeFFTButton:hover {
-    background-color: #6CB4EE; /* Light red hover */
-}
-
-/* Apply Zoom Button */
-QPushButton#ApplyZoomButton {
-    background-color: #3498DB; /* Teal color */
-    color: white;
-    font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 16px;
-    border-color: #3498DB;
-    border-radius: 5px;
-}
-QPushButton#ApplyZoomButton:hover {
-    background-color: #6CB4EE; /* Light teal hover */
-}
-
-/* Reset View Button */
-QPushButton#ResetViewButton {
-    background-color: #E74C3C; /* Red color */
-    color: white;
-    font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 16px;
-    border-color: #E74C3C;
-    border-radius: 5px;
-}
-QPushButton#ResetViewButton:hover {
-    background-color: #EC7063; /* Light red hover */
-}
-/* --------------------------------------- */
-/* ANALYSIS PANEL BUTTON STYLES */
-/* --------------------------------------- */
-
-/* Apply Plot, Scatter Plot, and Heatmap (Blue Style) */
-QPushButton#ApplyPlotButton, 
-QPushButton#ScatterPlotButton, 
-QPushButton#HeatmapButton {
-    background-color: #3498DB; /* Blue color from your CSS */
-    color: white;
-    font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 16px;
-    border-color: #3498DB;
-    border-radius: 5px;
-}
-
-QPushButton#ApplyPlotButton:hover, 
-QPushButton#ScatterPlotButton:hover, 
-QPushButton#HeatmapButton:hover {
-    background-color: #6CB4EE; /* Light blue hover from your CSS */
-    border-color: #6CB4EE;
-}
-
-/* Reset Button (Red Style) */
-QPushButton#ResetButton {
-    background-color: #E74C3C; /* Red color from your CSS */
-    color: white;
-    font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 16px;
-    border-color: #E74C3C;
-    border-radius: 5px;
-}
-
-QPushButton#ResetButton:hover {
-    background-color: #EC7063; /* Light red hover from your CSS */
-    border-color: #EC7063;
-}
-
-/* --------------------------------------- */
-/* DATA VISUALIZATION PANEL BUTTONS        */
-/* --------------------------------------- */
-
-/* Target all plotting buttons in the Viz Panel */
-QPushButton#VizScatterBtn, 
-QPushButton#VizTimeSeriesBtn, 
-QPushButton#VizFFTBtn, 
-QPushButton#VizHeatmapBtn {
-    background-color: #3498DB; /* Your standard Blue */
-    color: white;
-    font-weight: bold;
-    border-style: solid; 
-    border-width: 1px;
-    padding: 8px 12px;
-    border-color: #3498DB;
-    border-radius: 5px;
-}
-
-/* Hover effects for the buttons */
-QPushButton#VizScatterBtn:hover, 
-QPushButton#VizTimeSeriesBtn:hover, 
-QPushButton#VizFFTBtn:hover, 
-QPushButton#VizHeatmapBtn:hover {
-    background-color: #6CB4EE; /* Light Blue Hover */
-    border-color: #6CB4EE;
-}
-
-/* Optional: Special styling for the Heatmap button to make it 
-   stand out as it spans the full width */
-QPushButton#VizHeatmapBtn {
-    margin-top: 10px;
-    background-color: #1F497D; /* Using your Dark Blue Header color for variety */
-    border-color: #1F497D;
-}
-
-QPushButton#VizHeatmapBtn:hover {
-    background-color: #3498DB;
-}
-
-/* Target all the IDs we just created in Python */
-QComboBox#AnalysisTSCombo, 
-QComboBox#AnalysisMetric1Combo, 
-QComboBox#AnalysisMetric2Combo,
-QComboBox#VizScatterX, 
-QComboBox#VizScatterY, 
-QComboBox#VizTSCombo, 
-QComboBox#VizFFTCombo {
-    border: 1px solid black;
-    border-radius: 4px;
 }
