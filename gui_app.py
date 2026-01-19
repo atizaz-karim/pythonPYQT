@@ -13,6 +13,9 @@ from PyQt5.QtCore import QDateTime
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
+# Add this line near your other imports
+from data_analyzer import fft_denoise_signal, analyze_ecg_signal, analyze_eeg_signal
+
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -1290,7 +1293,7 @@ class HealthcareApp(QMainWindow):
             QMessageBox.warning(self, "No Data", "Please load a dataset containing ECG/EEG data first.")
             return
 
-        # 2. Get the selected Patient ID from the new input field
+        # 2. Get the selected Patient ID
         selected_patient_id = self.spectrum_patient_id.currentText().strip()
         if not selected_patient_id:
             QMessageBox.warning(self, "Selection Required", "Please select or enter a Patient ID first.")
@@ -1304,130 +1307,135 @@ class HealthcareApp(QMainWindow):
 
         try:
             # 4. Filter data for the SPECIFIC patient
-            # We convert patient_id to string to ensure matching works regardless of type
             patient_data = self.df[self.df['patient_id'].astype(str) == selected_patient_id]
             
             if patient_data.empty:
                 QMessageBox.warning(self, "No Patient Found", f"No records found for Patient ID: {selected_patient_id}")
                 return
 
-            # Get the signal data from the most recent record for this patient
+            # Get the signal data from the most recent record
             raw_signal_data = patient_data.iloc[-1][col]
 
-            # 5. Handle Signal Conversion 
-            # (If the data is stored as a CSV string "0.1,0.2...", convert to numpy array)
+            # 5. Handle Signal Conversion (FIXED PARSING)
             if isinstance(raw_signal_data, str):
-                signal = np.array([float(x) for x in raw_signal_data.split(',') if x.strip()])
+                # Strip brackets/quotes if they exist, then split by comma
+                clean_str = raw_signal_data.replace('[', '').replace(']', '').replace('"', '').replace("'", "")
+                signal = np.array([float(x) for x in clean_str.split(',') if x.strip()])
             else:
-                signal = np.array(raw_signal_data)
+                signal = np.atleast_1d(raw_signal_data).astype(float)
 
             if len(signal) == 0:
                 QMessageBox.warning(self, "Empty Signal", f"The signal for patient {selected_patient_id} contains no data.")
                 return
 
-            # 6. UI Plotting
+            # 6. UI Plotting (FIXED SCALING)
             self.raw_signal_ax.clear()
-            self.raw_signal_ax.plot(signal, color='#27AE60', linewidth=1)
+            
+            # Use a thinner line (0.8) to make the wave look more detailed
+            self.raw_signal_ax.plot(signal, color='#27AE60', linewidth=0.8, label="Raw Signal")
+            
+            # IMPORTANT: Set the X-limit to the actual length of the data
+            # This prevents the "single line" compression issue
+            self.raw_signal_ax.set_xlim(0, len(signal))
+            
             self.raw_signal_ax.set_title(f"Patient {selected_patient_id}: Raw {col} Signal", fontsize=12, fontweight='bold')
-            self.raw_signal_ax.set_xlabel("Time (Samples)", fontsize=10)
+            self.raw_signal_ax.set_xlabel("Samples (Time)", fontsize=10)
             self.raw_signal_ax.set_ylabel("Amplitude", fontsize=10)
             self.raw_signal_ax.grid(True, linestyle=':', alpha=0.6)
             
             self.raw_signal_canvas.figure.tight_layout()
             self.raw_signal_canvas.draw()
             
-            # 7. Update Sliders for this specific patient's signal length
+            # 7. Update Sliders
             max_samples = len(signal)
             self.segment_start_slider.setRange(0, max_samples - 2)
             self.segment_end_slider.setRange(2, max_samples)
             
-            default_end = min(500, max_samples)
+            # Reset sliders to show a reasonable starting window (e.g., first 1000 samples)
+            default_end = min(1000, max_samples)
+            self.segment_start_slider.setValue(0)
             self.segment_end_slider.setValue(default_end)
+            
             if hasattr(self, 'segment_end_label'):
                 self.segment_end_label.setText(str(default_end))
 
         except Exception as e:
-            QMessageBox.critical(self, "Plotting Error", f"An error occurred while rendering the patient signal: {str(e)}")
+            QMessageBox.critical(self, "Plotting Error", f"An error occurred: {str(e)}")
 
     def plot_fft(self):
-        # 1. Check if global data exists
+        """Triggered by 'Compute FFT Spectrum' button: Shows the CLEANED Signal."""
         if self.df is None or self.df.empty:
             QMessageBox.warning(self, "No Data", "Please load data before computing FFT.")
             return
 
-        # 2. Get the selected Patient ID from the input field
         selected_patient_id = self.spectrum_patient_id.currentText().strip()
         if not selected_patient_id:
-            QMessageBox.warning(self, "Selection Required", "Please select or enter a Patient ID first.")
+            QMessageBox.warning(self, "Selection Required", "Please select a Patient ID.")
             return
 
-        # 3. Get the signal column selection
         col = self.signal_dropdown.currentText()
         if not col or not any(key in col.upper() for key in ['ECG', 'EEG']):
-            QMessageBox.warning(self, "Invalid Signal", "FFT Analysis can only be performed on Biomedical Signals (ECG/EEG).")
+            QMessageBox.warning(self, "Invalid Signal", "FFT Analysis is for ECG/EEG Signals.")
             return
 
         try:
-            # 4. Filter data for the SPECIFIC patient
+            # 1. Filter data for the SPECIFIC patient
             patient_data = self.df[self.df['patient_id'].astype(str) == selected_patient_id]
-            
             if patient_data.empty:
-                QMessageBox.warning(self, "No Patient Found", f"No records found for Patient ID: {selected_patient_id}")
+                QMessageBox.warning(self, "No Patient", f"No records found for Patient {selected_patient_id}")
                 return
 
-            # Get signal string from the most recent record
+            # 2. Get signal and convert to numeric array (WITH STRING CLEANING)
             raw_signal_data = patient_data.iloc[-1][col]
-
-            # 5. Convert string to numeric array (handling the database format)
             if isinstance(raw_signal_data, str):
-                signal = np.array([float(x) for x in raw_signal_data.split(',') if x.strip()])
+                # Strip brackets/quotes that often break the split logic
+                clean_str = raw_signal_data.replace('[', '').replace(']', '').replace('"', '').replace("'", "")
+                signal = np.array([float(x) for x in clean_str.split(',') if x.strip()])
             else:
-                signal = np.array(raw_signal_data)
+                signal = np.atleast_1d(raw_signal_data).astype(float)
 
-            if len(signal) == 0:
-                QMessageBox.warning(self, "No Data", f"The signal for patient {selected_patient_id} contains no data.")
-                return
-
-            # 6. Apply Segment logic based on sliders
+            # 3. Apply Segment logic from your sliders
             start_idx = self.segment_start_slider.value()
             end_idx = self.segment_end_slider.value()
             
-            if start_idx >= end_idx:
-                QMessageBox.warning(self, "Invalid Range", "Start index must be less than end index.")
-                return
-
+            # Ensure indices are within bounds
+            start_idx = max(0, start_idx)
+            end_idx = min(len(signal), end_idx)
+            
             signal_segment = signal[start_idx:end_idx]
-            n = len(signal_segment)
-            
-            if n < 2:
-                QMessageBox.warning(self, "Insufficient Data", "Selected segment must contain at least 2 samples.")
-                return
-            
-            # 7. Compute FFT
-            freq = np.fft.rfftfreq(n, d=1.0)
-            fft_vals = np.abs(np.fft.rfft(signal_segment))
-            power_spectrum = 2.0/n * fft_vals
 
-            # 8. UI Plotting
+            if len(signal_segment) < 2:
+                QMessageBox.warning(self, "Range Error", "Selected segment is too small.")
+                return
+
+            # 4. Use the cleaning function from data_analyzer.py
+            # This performs FFT -> Filter -> Inverse FFT to reconstruct a clean wave
+            from data_analyzer import fft_denoise_signal
+            cleaned_signal = fft_denoise_signal(signal_segment, threshold_percent=0.1)
+
+            # 5. UI Plotting (Time Domain reconstruction)
+            # Use self.raw_signal_ax if you want the cleaned signal to replace the raw one on the same graph
+            # Or use self.spectrum_ax if you have a separate graph area for FFT
             self.spectrum_ax.clear()
-            self.spectrum_ax.plot(freq, power_spectrum, color='#E74C3C', linewidth=1.5)
             
-            # Updated title to include Patient ID
-            self.spectrum_ax.set_title(f"FFT Spectrum: Patient {selected_patient_id} ({col})", 
+            # Plot the Cleaned Signal in Red/Orange to distinguish from Raw Green
+            self.spectrum_ax.plot(cleaned_signal, color='#E74C3C', label='FFT Cleaned Wave', linewidth=1.2)
+            
+            # IMPORTANT: Set the X-limit to the length of the segment to prevent "single line" view
+            self.spectrum_ax.set_xlim(0, len(cleaned_signal))
+            
+            self.spectrum_ax.set_title(f"Cleaned Signal: Patient {selected_patient_id} ({col})", 
                                       fontsize=12, fontweight='bold')
-            self.spectrum_ax.set_xlabel("Frequency (cycles/sample)", fontsize=10)
-            self.spectrum_ax.set_ylabel("Amplitude", fontsize=10)
+            self.spectrum_ax.set_xlabel("Samples (Time)")
+            self.spectrum_ax.set_ylabel("Amplitude")
+            self.spectrum_ax.legend()
             self.spectrum_ax.grid(True, linestyle='--', alpha=0.5)
-            
-            # Apply user-defined limits from UI inputs
-            self.spectrum_ax.set_xlim(self.freq_min_input.value(), self.freq_max_input.value())
-            self.spectrum_ax.set_ylim(self.amp_min_input.value(), self.amp_max_input.value())
             
             self.spectrum_canvas.figure.tight_layout()
             self.spectrum_canvas.draw()
             
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to compute FFT for patient {selected_patient_id}: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to clean signal: {str(e)}")
 
     def apply_fft_zoom(self):
         if hasattr(self, 'spectrum_ax') and len(self.spectrum_ax.lines) > 0:
@@ -1921,39 +1929,39 @@ class HealthcareApp(QMainWindow):
             QMessageBox.critical(self, "Error", f"Failed to display heatmap: {str(e)}")
 
     def plot_time_series(self):
-        if self.df is None or self.df.empty:
-            QMessageBox.warning(self, "No Data", "Please load data before plotting time-series.")
-            return
-
-        col = self.ts_column_combo.currentText()
-        if not col:
-            QMessageBox.warning(self, "Error", "Select a column for time-series.")
-            return
-
-        if col not in self.df.columns:
-            QMessageBox.warning(self, "Invalid Column", f"Column '{col}' does not exist in the dataset.")
+        """Generates a time-series plot comparing Raw and Cleaned signals."""
+        if self.df.empty:
             return
 
         try:
-            if not pd.api.types.is_numeric_dtype(self.df[col]):
-                QMessageBox.warning(self, "Invalid Column", f"Column '{col}' is not numeric.")
+            # Get selected column from the dropdown in your spectrum panel
+            col = self.signal_dropdown.currentText()
+            
+            # Convert signal data to numeric for processing
+            raw_data = pd.to_numeric(self.df[col], errors='coerce').dropna().values
+            
+            if len(raw_data) == 0:
+                QMessageBox.warning(self, "Warning", "No valid numerical data in this column.")
                 return
 
-            data = self.df[col].dropna()
-            if len(data) == 0:
-                QMessageBox.warning(self, "No Data", f"Column '{col}' contains no valid numeric data.")
-                return
+            # Import and apply the new FFT denoising from data_analyzer.py
+            from data_analyzer import fft_denoise_signal
+            cleaned_data = fft_denoise_signal(raw_data, threshold_percent=0.1)
 
             self.figure.clear()
             ax = self.figure.add_subplot(111)
-            ax.set_box_aspect(0.6)
-            ax.plot(data, color='#2ECC71')
-            ax.set_xlabel("Index")
-            ax.set_ylabel(col)
-            ax.set_title(f"Time-Series Plot: {col}")
+            
+            # Plot Raw in background and Cleaned in foreground
+            ax.plot(raw_data, color='lightgray', label='Raw Signal', alpha=0.5)
+            ax.plot(cleaned_data, color='#2ECC71', label='FFT Cleaned', linewidth=1.5)
+            
+            ax.set_title(f"Signal Comparison: {col}")
+            ax.legend()
+            ax.grid(True, linestyle='--', alpha=0.6)
             self.canvas.draw()
+            
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to plot time-series: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to plot signal: {str(e)}")
 
     def plot_fft_viz(self):
         if self.df is None or self.df.empty:
