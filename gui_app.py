@@ -193,13 +193,13 @@ class HealthcareApp(QMainWindow):
         self.load_csv_btn.setToolTip("Browse and load data from a local CSV file.")
         self.load_csv_btn.clicked.connect(self.load_csv)
 
-        self.db_connect_btn = QPushButton("Refresh Table")
-        self.db_connect_btn.setObjectName("RefreshTableButton")
-        self.db_connect_btn.setToolTip("Retrieves all patient records from the database and loads them into the table.")
-        self.db_connect_btn.clicked.connect(self.db_retrieve_data) 
+        # self.db_connect_btn = QPushButton("Refresh Table")
+        # self.db_connect_btn.setObjectName("RefreshTableButton")
+        # self.db_connect_btn.setToolTip("Retrieves all patient records from the database and loads them into the table.")
+        # self.db_connect_btn.clicked.connect(self.db_retrieve_data) 
         
         source_layout.addWidget(self.load_csv_btn)
-        source_layout.addWidget(self.db_connect_btn)
+        # source_layout.addWidget(self.db_connect_btn)
         source_layout.addStretch()
         layout.addWidget(source_group)
 
@@ -277,6 +277,19 @@ class HealthcareApp(QMainWindow):
         # Assign ID for CSS
         self.date_input.setObjectName("dateInput")
 
+        manual_layout.addWidget(QLabel("Medical Image:"), 5, 2)
+        self.image_path_input = QLineEdit()
+        self.image_path_input.setPlaceholderText("Select image path...")
+        self.image_path_input.setReadOnly(True) # Path updated via button
+        
+        self.browse_img_btn = QPushButton("Browse")
+        self.browse_img_btn.clicked.connect(self.browse_patient_image)
+        
+        image_hb = QHBoxLayout()
+        image_hb.addWidget(self.image_path_input)
+        image_hb.addWidget(self.browse_img_btn)
+        manual_layout.addLayout(image_hb, 5, 3)
+
         # Row 6: Submit Button (Moved to Row 6)
         self.add_patient_btn = QPushButton("Save Patient Record")
         self.add_patient_btn.setMinimumHeight(40)
@@ -302,10 +315,21 @@ class HealthcareApp(QMainWindow):
         self.patient_id_input.setToolTip("Specify the unique ID of the record to modify or delete.")
         db_ops_layout.addWidget(self.patient_id_input, 1, 1)
 
-        self.insert_btn = QPushButton("Insert Current Data")
-        self.insert_btn.setObjectName("InsertButton") 
-        self.insert_btn.setToolTip("Inserts the currently loaded DataFrame into the DB (bulk insert).")
-        self.insert_btn.clicked.connect(self.db_insert_data)
+        # self.insert_btn = QPushButton("Insert Current Data")
+        # self.insert_btn.setObjectName("InsertButton") 
+        # self.insert_btn.setToolTip("Inserts the currently loaded DataFrame into the DB (bulk insert).")
+        # self.insert_btn.clicked.connect(self.db_insert_data)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search Name or ID...")
+        self.search_input.setFixedWidth(180)
+        db_ops_layout.addWidget(self.search_input, 1, 2)
+
+        self.search_btn = QPushButton("Search Patient")
+        self.search_btn.setObjectName("SearchButton")
+        # Connect this to your search logic
+        self.search_btn.clicked.connect(self.db_search_patient) 
+        db_ops_layout.addWidget(self.search_btn, 1, 3)
 
         self.update_btn = QPushButton("Update Record")
         self.update_btn.setObjectName("UpdateButton")
@@ -317,10 +341,16 @@ class HealthcareApp(QMainWindow):
         self.delete_btn.setToolTip("Removes the record specified by Patient ID permanently.")
         self.delete_btn.clicked.connect(self.db_delete_record)
 
-        db_ops_layout.addWidget(self.insert_btn, 2, 0)
+        # db_ops_layout.addWidget(self.insert_btn, 2, 0)
         db_ops_layout.addWidget(self.update_btn, 2, 1)
         db_ops_layout.addWidget(self.delete_btn, 2, 2)
-        db_ops_layout.setColumnStretch(3, 1) 
+
+        self.clear_btn = QPushButton("Clear Search")
+        self.clear_btn.clicked.connect(self.db_retrieve_data)
+        db_ops_layout.addWidget(self.clear_btn, 2, 3)
+
+        db_ops_layout.setColumnStretch(4, 1) 
+        layout.addWidget(db_ops_group)
 
         layout.addWidget(db_ops_group)
 
@@ -352,19 +382,30 @@ class HealthcareApp(QMainWindow):
         layout.addStretch()
 
         return panel
+    def browse_patient_image(self):
+        """Opens file dialog to select an image for the record."""
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Patient Image", "", "Image Files (*.png *.jpg *.jpeg *.bmp)")
+        if file_path:
+            self.image_path_input.setText(file_path)
 
     def load_csv(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select CSV", "", "CSV Files (*.csv)")
         if file_path:
             try:
-                self.df = pd.read_csv(file_path)
-                self.filtered_df = self.df.copy() 
-                self.populate_table(self.df)
-                self._update_viz_dropdowns()
-                self._update_analysis_dropdowns()
-                QMessageBox.information(self, "Success", f"Data loaded successfully from {os.path.basename(file_path)}")
+                # 1. Read CSV
+                new_df = pd.read_csv(file_path)
+                
+                # 2. Automatically save and refresh
+                if self.db_manager:
+                    self.db_manager.insert_patient_data(new_df)
+                    self.current_page = 0
+                    self.db_retrieve_data() # This refreshes the table view (canvas)
+                    QMessageBox.information(self, "Success", f"Data from {os.path.basename(file_path)} saved and table updated.")
+                else:
+                    self.df = new_df
+                    self.populate_table(self.df)
             except Exception as e:
-                QMessageBox.critical(self, "Error Loading Data", f"Failed to load CSV: {e}")
+                QMessageBox.critical(self, "Error", f"Failed to load: {e}")
 
     def _update_analysis_dropdowns(self):
         """Refreshes the dropdown menus while filtering out non-analytical columns like Patient ID."""
@@ -372,14 +413,11 @@ class HealthcareApp(QMainWindow):
             return
 
         try:
-            # Get numerical columns and filter out 'Patient ID' or any column containing 'ID'
-            # This ensures only health metrics are shown in the analysis dropdowns.
             numerical_cols = [
                 col for col in self.df.select_dtypes(include=np.number).columns.tolist()
                 if 'ID' not in col.upper()
             ]
 
-            # 1. Update Time-Series Analysis Column
             if hasattr(self, 'ts_analysis_column'):
                 current_ts = self.ts_analysis_column.currentText()
                 self.ts_analysis_column.clear()
@@ -522,7 +560,7 @@ class HealthcareApp(QMainWindow):
             QMessageBox.critical(self, "Refresh Error", f"Failed to retrieve data: {e}")
 
     def manual_db_insert(self):
-        """Captures UI input and sends it to the relational database."""
+        """Captures UI input, including medical images, and sends it to the relational database."""
         try:
             # 1. Basic validation
             name_val = self.name_input.text().strip()
@@ -534,8 +572,21 @@ class HealthcareApp(QMainWindow):
             gender_val = self.gender_input.currentText()
             record_date = self.date_input.dateTime().toString("yyyy-MM-dd HH:mm:ss")
 
-            # 3. Create the data dictionary
-            # Ensure keys match the 'column_mapping' in database_manager.py
+            # 3. Handle Image File Processing
+            image_blob = None
+            image_path = self.image_path_input.text().strip()
+            
+            if image_path and os.path.exists(image_path):
+                try:
+                    # Convert image file to raw bytes (BLOB)
+                    with open(image_path, 'rb') as file:
+                        image_blob = file.read()
+                except Exception as e:
+                    QMessageBox.warning(self, "Image Error", f"Could not read image file: {e}")
+            
+            # 4. Create the data dictionary for the DB Manager
+            # Note: We include 'Name' and 'Gender' so the DB Manager can handle 
+            # the relational link to the 'patients' table.
             report_data = {
                 "Name": name_val,
                 "Gender": gender_val,
@@ -547,24 +598,29 @@ class HealthcareApp(QMainWindow):
                 "Heart_Disease_Status": self.status_input.currentText(),
                 "ECG_Signal": self.ecg_input.text().strip(),
                 "EEG_Signal": self.eeg_input.text().strip(),
-                "Date_Recorded": record_date
+                "Date_Recorded": record_date,
+                "Image_Data": image_blob  # This maps to the BLOB column
             }
 
-            # 4. Convert to DataFrame and Insert
-            # The DatabaseManager.insert_patient_data logic handles the 
-            # Patient ID lookup/creation automatically now.
-            temp_df = pd.DataFrame([report_data])
-            self.db_manager.insert_patient_data(temp_df) 
+            # 5. Insert via specialized manual record method
+            success = self.db_manager.insert_manual_record(report_data)
             
-            # 5. UI Updates
-            self.db_retrieve_data() # Refresh the table to show new entry
-            
-            # Clear fields for next entry
-            self.name_input.clear()
-            self.ecg_input.clear()
-            self.eeg_input.clear()
-            self.status_label.setText(f"Added entry for {name_val} at {record_date}")
-            QMessageBox.information(self, "Success", f"Data saved for {name_val}")
+            if success:
+                # 6. UI Updates and Cleanup
+                self.db_retrieve_data() # Refresh the table to show new entry
+                
+                # Clear fields for next entry
+                self.name_input.clear()
+                self.image_path_input.clear()
+                self.ecg_input.clear()
+                self.eeg_input.clear()
+                
+                if hasattr(self, 'status_label'):
+                    self.status_label.setText(f"Added record for {name_val} with image.")
+                
+                QMessageBox.information(self, "Success", f"Patient record for {name_val} saved successfully.")
+            else:
+                QMessageBox.critical(self, "DB Error", "Failed to save record. Check database connection.")
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to add patient record: {e}")
@@ -580,7 +636,29 @@ class HealthcareApp(QMainWindow):
             QMessageBox.information(self, "Success", f"Successfully inserted {len(self.df)} rows into the DB.")
         except Exception as e:
             QMessageBox.critical(self, "DB Insertion Error", f"Failed to insert data: {e}")
+    def db_search_patient(self):
+        """Filters the database view for a specific name or ID."""
+        search_term = self.search_input.text().strip()
+        if not search_term:
+            QMessageBox.warning(self, "Input Error", "Please enter a Name or ID.")
+            return
 
+        # Logic to filter: 
+        # If using local DataFrame (self.df):
+        if hasattr(self, 'df'):
+            # Check if ID (exact match) or Name (contains string)
+            if search_term.isdigit():
+                # Adjust column name to match your CSV/DB headers (e.g., 'patient_id')
+                filtered = self.df[self.df.iloc[:, 0].astype(str) == search_term]
+            else:
+                # Adjust 'Name' to match your column name
+                filtered = self.df[self.df['Name'].str.contains(search_term, case=False, na=False)]
+            
+            if not filtered.empty:
+                self.populate_table(filtered)
+                self.status_label.setText(f"Found {len(filtered)} records.")
+            else:
+                QMessageBox.information(self, "No Results", "No matching patient found.")
     def db_update_prompt(self):
         if not self._check_db_manager(): return
 
@@ -591,8 +669,13 @@ class HealthcareApp(QMainWindow):
             return
         patient_id = int(patient_id_str)
         
-        # 2. ADD 'Name' TO THE FIELDS LIST HERE
-        fields = ['Name', 'Age', 'Gender', 'Blood_Pressure', 'Cholesterol_Level', 'BMI', 'Heart_Disease_Status'] 
+        # DYNAMIC FIX: Get all column names from the current dataframe
+        # Filter out 'patient_id' and 'report_id' as they shouldn't be manually edited
+        if self.df is not None and not self.df.empty:
+            fields = [col for col in self.df.columns if 'id' not in col.lower()]
+        else:
+            QMessageBox.warning(self, "No Data", "No data available to determine column names.")
+            return
 
         # 3. Ask the user which field they want to change
         field, ok = QInputDialog.getItem(self, "Update Record", "Select Field to Update:", fields, 0, False)
@@ -611,8 +694,8 @@ class HealthcareApp(QMainWindow):
                     
                     QMessageBox.information(self, "Success", f"Patient {patient_id} updated successfully.")
                     
-                    # 5. Refresh the table so you can see the new Name/Value immediately
-                    self.db_retrieve_data() 
+                    # 5. Refresh the table to see changes immediately
+                    self.db_retrieve_data()
                     
                 except Exception as e:
                     QMessageBox.critical(self, "DB Update Error", f"Failed to update record: {e}")
@@ -1484,121 +1567,229 @@ class HealthcareApp(QMainWindow):
         panel = QWidget()
         layout = QVBoxLayout(panel)
 
-        title = QLabel("Medical Image Processing")
+        # 1. Title
+        title = QLabel("Medical Image Processing & Database Sync")
         title.setObjectName("PanelTitle")
-        # REMOVED: title.setStyleSheet("...")
         layout.addWidget(title)
 
+        # 2. DB Fetch Section (Horizontal Bar)
+        db_fetch_layout = QHBoxLayout()
+        db_fetch_group = QGroupBox("Fetch From Database")
+        db_fetch_inner = QHBoxLayout(db_fetch_group)
+
+        self.id_fetch_input = QLineEdit()
+        self.id_fetch_input.setPlaceholderText("Enter Patient ID...")
+        self.id_fetch_input.setFixedWidth(150)
+
+        self.load_db_img_btn = QPushButton("Fetch Latest Image")
+        self.load_db_img_btn.setObjectName("FetchImageButton")
+        self.load_db_img_btn.clicked.connect(self.load_image_by_patient_id)
+
+        db_fetch_inner.addWidget(QLabel("Patient ID:"))
+        db_fetch_inner.addWidget(self.id_fetch_input)
+        db_fetch_inner.addWidget(self.load_db_img_btn)
+        db_fetch_inner.addStretch()
+        
+        layout.addWidget(db_fetch_group)
+
+        # 3. Processing Controls Row
         controls_layout = QHBoxLayout()
         
-        self.load_image_btn = QPushButton("Upload Image")
+        # Upload from Local File
+        self.load_image_btn = QPushButton("Upload Local File")
         self.load_image_btn.setObjectName("UploadImageButton")
-        self.load_image_btn.setToolTip("Load X-ray, MRI, or CT scan image.")
         self.load_image_btn.clicked.connect(self.load_image)
         controls_layout.addWidget(self.load_image_btn)
 
-        self.grayscale_btn = QPushButton("Grayscale Conversion")
-        self.grayscale_btn.setObjectName("GrayscaleButton")
-        self.grayscale_btn.setToolTip("Convert the image to grayscale.")
+        # Grayscale
+        self.grayscale_btn = QPushButton("Grayscale")
         self.grayscale_btn.clicked.connect(self.convert_to_grayscale)
         controls_layout.addWidget(self.grayscale_btn)
 
+        # Smoothing Filters
         blur_layout = QVBoxLayout()
-        blur_layout.addWidget(QLabel("Smoothing Filter:"))
+        blur_layout.addWidget(QLabel("Smoothing:"))
         self.blur_dropdown = QComboBox()
-        self.blur_dropdown.setObjectName("BlurDropdown")
         self.blur_dropdown.addItems(["Gaussian Blur (15x15)", "Median Filter (5x5)"])
-        self.blur_dropdown.setToolTip("Select the type of noise reduction filter to apply.")
         blur_layout.addWidget(self.blur_dropdown)
-        self.apply_blur_btn = QPushButton("Apply Blur")
-        self.apply_blur_btn.setObjectName("ApplyBlurButton")
+        self.apply_blur_btn = QPushButton("Apply Filter")
         self.apply_blur_btn.clicked.connect(self.apply_blur)
         blur_layout.addWidget(self.apply_blur_btn)
         controls_layout.addLayout(blur_layout)
         
-        self.edge_btn = QPushButton("Canny Edge Detection")
-        self.edge_btn.setObjectName("CannyEdgeButton")
-        self.edge_btn.setToolTip("Apply Canny algorithm to detect edges.")
+        # Edges
+        self.edge_btn = QPushButton("Edge Detection")
         self.edge_btn.clicked.connect(self.apply_edge_detection)
         controls_layout.addWidget(self.edge_btn)
 
+        # Thresholding
         thresh_layout = QVBoxLayout()
-        thresh_layout.addWidget(QLabel("Threshold Level (0-255):"))
+        thresh_layout.addWidget(QLabel("Threshold (0-255):"))
         self.threshold_slider = QSlider(Qt.Horizontal)
         self.threshold_slider.setRange(0, 255)
         self.threshold_slider.setValue(127)
-        self.threshold_slider.setToolTip("Adjusts the pixel value for image binarization (segmentation).")
         thresh_layout.addWidget(self.threshold_slider)
         self.apply_threshold_btn = QPushButton("Apply Threshold")
-        self.apply_threshold_btn.setObjectName("ApplyThresholdButton")
         self.apply_threshold_btn.clicked.connect(self.apply_threshold)
         thresh_layout.addWidget(self.apply_threshold_btn)
         controls_layout.addLayout(thresh_layout)
         
         layout.addLayout(controls_layout)
 
-        separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)
-        separator.setFrameShadow(QFrame.Sunken)
-        layout.addWidget(separator)
+        # 4. Separator
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(line)
 
-        image_comparison_label = QLabel("Image Comparison")
-        layout.addWidget(image_comparison_label)
-
-        # Display images side by side - Original on LEFT, Processed on RIGHT
+        # 5. Image Comparison Area (Side-by-Side)
         self.image_layout = QHBoxLayout()
-        self.image_layout.setSpacing(20)
         
-        # Left side - Original Image
+        # Original Image
         original_container = QWidget()
-        original_container.setObjectName("OriginalImageContainer")
-        original_container_layout = QVBoxLayout(original_container)
-        original_container_layout.setSpacing(5)
-        
-        original_title = QLabel("Original Image")
-        original_title.setAlignment(Qt.AlignCenter)
-        original_container_layout.addWidget(original_title)
-        
+        orig_v_layout = QVBoxLayout(original_container)
+        orig_v_layout.addWidget(QLabel("Original / DB Image", alignment=Qt.AlignCenter))
         self.original_image_label = QLabel("No image loaded")
         self.original_image_label.setAlignment(Qt.AlignCenter)
-        self.original_image_label.setObjectName("ImageDisplayLabelOriginal")
         self.original_image_label.setFixedSize(500, 500)
-        original_container_layout.addWidget(self.original_image_label)
+        self.original_image_label.setStyleSheet("border: 2px dashed #7f8c8d; background: #2c3e50;")
+        orig_v_layout.addWidget(self.original_image_label)
         self.image_layout.addWidget(original_container)
-        
-        # Vertical divider between images
-        divider = QFrame()
-        divider.setFrameShape(QFrame.VLine)
-        divider.setFrameShadow(QFrame.Sunken)
-        divider.setObjectName("ImageDivider")
-        divider.setMaximumWidth(3)
-        self.image_layout.addWidget(divider)
-        
-        # Right side - Processed Image
+
+        # Processed Image
         processed_container = QWidget()
-        processed_container.setObjectName("ProcessedImageContainer")
-        processed_container_layout = QVBoxLayout(processed_container)
-        processed_container_layout.setSpacing(5)
-        
-        processed_title = QLabel("Processed Image")
-        processed_title.setAlignment(Qt.AlignCenter)
-        processed_container_layout.addWidget(processed_title)
-        
-        self.processed_image_label = QLabel("No processed image")
+        proc_v_layout = QVBoxLayout(processed_container)
+        proc_v_layout.addWidget(QLabel("Processed Result", alignment=Qt.AlignCenter))
+        self.processed_image_label = QLabel("Result will appear here")
         self.processed_image_label.setAlignment(Qt.AlignCenter)
-        self.processed_image_label.setObjectName("ImageDisplayLabelProcessed")
         self.processed_image_label.setFixedSize(500, 500)
-        processed_container_layout.addWidget(self.processed_image_label)
+        self.processed_image_label.setStyleSheet("border: 2px solid #27ae60; background: #2c3e50;")
+        proc_v_layout.addWidget(self.processed_image_label)
         self.image_layout.addWidget(processed_container)
         
         layout.addLayout(self.image_layout)
-        
-        info_label = QLabel("Note: Images are scaled to fit the display area. Original image is shown on the left, processed result on the right for easy comparison.")
-        info_label.setWordWrap(True)
-        info_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(info_label)
+
+        # 6. Save Back to DB Button
+        self.btn_save_processed = QPushButton("Save Processed Image to Patient Record")
+        self.btn_save_processed.setMinimumHeight(50)
+        self.btn_save_processed.setObjectName("SaveProcessedBtn")
+        # Ensure this color matches your theme, or use your CSS file
+        self.btn_save_processed.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold;")
+        self.btn_save_processed.clicked.connect(self.save_processed_image_to_db)
+        layout.addWidget(self.btn_save_processed)
+
+        # 7. Reset Button
+        self.btn_reset = QPushButton("Reset View")
+        self.btn_reset.clicked.connect(self.reset_image_view)
+        layout.addWidget(self.btn_reset)
 
         return panel
+    
+    def load_image_for_analysis(self, report_id):
+        """Retrieves BLOB from DB and displays in the 'Original Image' container."""
+        # 1. Store the ID so the "Save" button knows which record to update later
+        self.current_analysis_report_id = report_id 
+        
+        # 2. Fetch the binary data from the database manager
+        image_data = self.db_manager.retrieve_image_from_db(report_id) 
+        
+        if image_data:
+            pixmap = QPixmap()
+            # 3. Load the bytes directly into a QPixmap
+            if pixmap.loadFromData(image_data):
+                self.original_image_label.setPixmap(
+                    pixmap.scaled(500, 500, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                )
+                
+                # 4. Also convert to OpenCV format for processing
+                nparr = np.frombuffer(image_data, np.uint8)
+                self.cv_image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                self.processed_cv_image = self.cv_image.copy()
+            else:
+                self.original_image_label.setText("Error loading image data")
+        else:
+            self.original_image_label.setText("No image found for this record")
+    
+    def load_image_by_patient_id(self):
+        """Fetches the latest image for a specific Patient ID from the database."""
+        patient_id_text = self.id_fetch_input.text().strip()
+        
+        if not patient_id_text.isdigit():
+            QMessageBox.warning(self, "Input Error", "Please enter a valid numeric Patient ID.")
+            return
+
+        patient_id = int(patient_id_text)
+
+        try:
+            # Query the database for the most recent image for this patient
+            sql = """
+                SELECT Image_Data, report_id 
+                FROM patient_health_metrics 
+                WHERE patient_id = ? AND Image_Data IS NOT NULL
+                ORDER BY report_id DESC LIMIT 1
+            """
+            self.db_manager.cursor.execute(sql, (patient_id,))
+            result = self.db_manager.cursor.fetchone()
+
+            if result and result[0]:
+                # Use your existing logic to display and prepare for OpenCV
+                self.load_image_for_analysis(result[1]) 
+                QMessageBox.information(self, "Success", f"Loaded image for Patient ID: {patient_id}")
+            else:
+                QMessageBox.warning(self, "Not Found", f"No image record found for Patient ID: {patient_id}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Database Error", f"Failed to fetch image: {str(e)}")
+
+    def save_processed_image_to_db(self):
+        """Encodes the processed OpenCV image and saves it back to the database."""
+        if not hasattr(self, 'processed_cv_image') or self.processed_cv_image is None:
+            QMessageBox.warning(self, "Save Error", "No processed image found to save.")
+            return
+            
+        if not hasattr(self, 'current_analysis_report_id'):
+            QMessageBox.warning(self, "Save Error", "No active record linked to this image.")
+            return
+
+        try:
+            # Convert processed OpenCV image to bytes
+            success, buffer = cv2.imencode(".png", self.processed_cv_image)
+            if not success:
+                raise ValueError("Image encoding failed")
+            
+            image_bytes = buffer.tobytes()
+
+            # Call DB manager to update the BLOB
+            # Note: Ensure your DatabaseManager has save_image_to_db(report_id, image_bytes)
+            success = self.db_manager.save_image_to_db(self.current_analysis_report_id, image_bytes)
+            
+            if success:
+                QMessageBox.information(self, "Success", "Processed image saved to database successfully.")
+            else:
+                QMessageBox.critical(self, "Error", "Failed to update database record.")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save image: {str(e)}")
+
+    def reset_image_view(self):
+        """Clears the image display labels and resets internal image variables."""
+        # 1. Clear the UI Labels
+        self.original_image_label.clear()
+        self.original_image_label.setText("No image loaded")
+        
+        self.processed_image_label.clear()
+        self.processed_image_label.setText("Result will appear here")
+        
+        # 2. Reset the internal OpenCV variables
+        self.cv_image = None
+        self.processed_cv_image = None
+        self.current_analysis_report_id = None
+        
+        # 3. Clear the Patient ID input
+        if hasattr(self, 'id_fetch_input'):
+            self.id_fetch_input.clear()
+            
+        QMessageBox.information(self, "Reset", "Image view and analysis data have been cleared.")
 
     def load_image(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Medical Image", "", "Image Files (*.png *.jpg *.jpeg *.bmp *.dcm);;All Files (*)")
@@ -1710,6 +1901,8 @@ class HealthcareApp(QMainWindow):
             self.processed_cv_image = thresh
             self.display_image(self.processed_cv_image, self.processed_image_label)
             self.update_viz_image()
+
+
 
     def update_viz_image(self):
         """Updates the image placeholder in the Visualization tab with the latest processed image."""

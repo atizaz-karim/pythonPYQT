@@ -9,10 +9,11 @@ class DatabaseManager:
         self.conn.execute('PRAGMA journal_mode=WAL;')
         self.cursor = self.conn.cursor()
         print(f"Successfully connected to {db_name} in WAL mode.")
+        self.create_tables()
 
     def create_tables(self):
-        """Creates the relational tables with a full schema for all medical metrics."""
-        # 1. Table for unique patients (One-to-Many relationship starts here)
+        """Creates the relational tables with a full schema including image support."""
+        # 1. Table for unique patients
         create_patients_table = '''
         CREATE TABLE IF NOT EXISTS patients (
             patient_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,7 +21,7 @@ class DatabaseManager:
             Gender TEXT
         );
         '''
-        # 2. Table for multiple reports linked to a patient
+        # 2. Table for health metrics including BLOB for image storage
         create_health_reports_table = '''
         CREATE TABLE IF NOT EXISTS patient_health_metrics (
             report_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,63 +39,43 @@ class DatabaseManager:
             ECG_Signal TEXT,
             EEG_Signal TEXT,
             Date_Recorded TEXT,
+            Image_Data BLOB,
             FOREIGN KEY (patient_id) REFERENCES patients(patient_id)
         );
         '''
         self.cursor.execute(create_patients_table)
         self.cursor.execute(create_health_reports_table)
         self.conn.commit()
-        print("Tables ensured successfully with full schema.")
+        print("Tables ensured successfully with full schema (including Image BLOB).")
 
     def insert_patient_data(self, df_source):
-        """
-        Cleans data and performs relational insertion. 
-        Links metrics to specific patients and allows multiple entries per patient.
-        """
+        """Processes and inserts a DataFrame of patient data into the relational structure."""
         column_mapping = {
-            'Name': 'Name',
-            'Gender': 'Gender',
-            'ECG Signal': 'ECG_Signal',
-            'EEG Signal': 'EEG_Signal',
-            'Blood Pressure': 'Blood_Pressure',
-            'Cholesterol Level': 'Cholesterol_Level',
-            'Sleep Hours': 'Sleep_Hours',
-            'Triglyceride Level': 'Triglyceride_Level',
-            'Fasting Blood Sugar': 'Fasting_Blood_Sugar',
-            'CRP Level': 'CRP_Level',
-            'Homocysteine Level': 'Homocysteine_Level',
-            'Heart Disease Status': 'Heart_Disease_Status',
-            'Date Recorded': 'Date_Recorded'
+            'Name': 'Name', 'Gender': 'Gender', 'ECG Signal': 'ECG_Signal',
+            'EEG Signal': 'EEG_Signal', 'Blood Pressure': 'Blood_Pressure',
+            'Cholesterol Level': 'Cholesterol_Level', 'Sleep Hours': 'Sleep_Hours',
+            'Triglyceride Level': 'Triglyceride_Level', 'Fasting Blood Sugar': 'Fasting_Blood_Sugar',
+            'CRP Level': 'CRP_Level', 'Homocysteine Level': 'Homocysteine_Level',
+            'Heart Disease Status': 'Heart_Disease_Status', 'Date Recorded': 'Date_Recorded'
         }
 
         df = df_source.copy()
-
         for space_name, underscore_name in column_mapping.items():
             if space_name in df.columns:
                 df.rename(columns={space_name: underscore_name}, inplace=True)
 
-        numeric_cols = df.select_dtypes(include=[np.number]).columns
-        for col in numeric_cols:
-            df[col] = df[col].fillna(df[col].median())
-            
-        object_cols = df.select_dtypes(include=['object']).columns
-        for col in object_cols:
-            if not df[col].mode().empty:
-                df[col] = df[col].fillna(df[col].mode()[0])
-
         rows_inserted = 0
-        for _, row in df.iterrows():
+        for i, row in df.iterrows():
             try:
                 name = str(row.get('Name', '')).strip()
-                gender = row.get('Gender', 'Unknown')
+                if not name or name.lower() == 'nan':
+                    name = f"Patient_{i+1}"
                 
-                if not name:
-                    continue
+                gender = row.get('Gender', 'Unknown')
 
-                # Relational Lookup: Check if patient exists
+                # Handle relational patient lookup/creation
                 self.cursor.execute("SELECT patient_id FROM patients WHERE Name = ?", (name,))
                 result = self.cursor.fetchone()
-
                 if result:
                     patient_id = result[0]
                 else:
@@ -118,23 +99,55 @@ class DatabaseManager:
                     'Date_Recorded': row.get('Date_Recorded')
                 }
 
-                metrics_data = {k: v for k, v in metrics_data.items() if v is not None}
+                # Clean and Insert
+                metrics_data = {k: v for k, v in metrics_data.items() if v is not None and not (isinstance(v, float) and np.isnan(v))}
                 columns = ', '.join(metrics_data.keys())
                 placeholders = ', '.join(['?' for _ in metrics_data])
                 values = tuple(metrics_data.values())
                 
-                insert_sql = f"INSERT INTO patient_health_metrics ({columns}) VALUES ({placeholders})"
-                self.cursor.execute(insert_sql, values)
+                self.cursor.execute(f"INSERT INTO patient_health_metrics ({columns}) VALUES ({placeholders})", values)
                 rows_inserted += 1
 
             except Exception as e:
-                print(f"Error inserting row for {row.get('Name')}: {e}")
+                print(f"Error inserting row {i}: {e}")
 
         self.conn.commit()
         print(f"Relational insertion complete. Processed {rows_inserted} entries.")
 
+    def insert_manual_record(self, metrics_data):
+        try:
+            # Relational Patient Logic
+            if 'Name' in metrics_data:
+                name = metrics_data.pop('Name')
+                gender = metrics_data.pop('Gender', 'Unknown')
+                
+                self.cursor.execute("SELECT patient_id FROM patients WHERE Name = ?", (name,))
+                result = self.cursor.fetchone()
+                if not result:
+                    self.cursor.execute("INSERT INTO patients (Name, Gender) VALUES (?, ?)", (name, gender))
+                    patient_id = self.cursor.lastrowid
+                else:
+                    patient_id = result[0]
+                metrics_data['patient_id'] = patient_id
+
+            # CRITICAL: Convert raw bytes to SQLite Binary
+            if 'Image_Data' in metrics_data and metrics_data['Image_Data'] is not None:
+                metrics_data['Image_Data'] = sqlite3.Binary(metrics_data['Image_Data'])
+
+            # Build and execute query
+            columns = ', '.join(metrics_data.keys())
+            placeholders = ', '.join(['?' for _ in metrics_data])
+            query = f"INSERT INTO patient_health_metrics ({columns}) VALUES ({placeholders})"
+            
+            self.cursor.execute(query, tuple(metrics_data.values()))
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print(f"Database Error: {e}")
+            return False
+
     def get_patient_data(self, limit=50, offset=0):
-        """Fetches joined data from patients and metrics tables for the general table view."""
+        """Fetches data for the main table view."""
         query = """
         SELECT m.report_id, p.Name, p.Gender, m.*
         FROM patients p
@@ -144,41 +157,14 @@ class DatabaseManager:
         """
         try:
             df = pd.read_sql_query(query, self.conn, params=(limit, offset))
-            if 'patient_id' in df.columns:
-                df = df.loc[:, ~df.columns.duplicated()]
-            return df
+            # Remove duplicate patient_id column if present from JOIN
+            return df.loc[:, ~df.columns.duplicated()]
         except Exception as e:
             print(f"Error fetching data: {e}")
             return pd.DataFrame()
 
-    def get_single_patient_history(self, patient_id):
-        """
-        Fetches all historical health records for a specific patient ID.
-        Used for Time-Series trends and individual correlation analysis.
-        """
-        query = """
-        SELECT m.*, p.Name 
-        FROM patient_health_metrics m
-        JOIN patients p ON m.patient_id = p.patient_id
-        WHERE m.patient_id = ?
-        ORDER BY m.Date_Recorded ASC
-        """
-        try:
-            return pd.read_sql_query(query, self.conn, params=(patient_id,))
-        except Exception as e:
-            print(f"Error fetching history for Patient ID {patient_id}: {e}")
-            return pd.DataFrame()
-
-    def get_total_count(self):
-        """Returns the total number of health records in the database."""
-        try:
-            self.cursor.execute("SELECT COUNT(*) FROM patient_health_metrics")
-            return self.cursor.fetchone()[0]
-        except:
-            return 0
-
     def update_patient_data(self, patient_id, **kwargs):
-        """Updates specific fields for a patient record."""
+        """Updates specific fields in a patient record."""
         update_fields = []
         parameters = []
         for key, value in kwargs.items():
@@ -189,22 +175,57 @@ class DatabaseManager:
         if not update_fields: return
         parameters.append(patient_id)
         set_clause = ", ".join(update_fields)
-        update_sql = f"UPDATE patient_health_metrics SET {set_clause} WHERE patient_id = ?"
-        self.cursor.execute(update_sql, tuple(parameters))
+        self.cursor.execute(f"UPDATE patient_health_metrics SET {set_clause} WHERE patient_id = ?", tuple(parameters))
         self.conn.commit()
 
-    def delete_patient_data(self, patient_id):
-        """Deletes a patient record by ID."""
+    def convert_to_binary(self, file_path):
+        """Helper to convert image file to binary BLOB."""
         try:
-            delete_sql = "DELETE FROM patient_health_metrics WHERE patient_id = ?"
-            self.cursor.execute(delete_sql, (patient_id,))
-            self.conn.commit()
-            return self.cursor.rowcount
+            with open(file_path, 'rb') as file:
+                return file.read()
         except Exception as e:
-            print(f"Database error during deletion: {e}")
-            return -1
+            print(f"Binary conversion error: {e}")
+            return None
+
+    def save_image_to_db(self, report_id, image_bytes):
+        """Updates an existing record with processed image data."""
+        try:
+            sql = "UPDATE patient_health_metrics SET Image_Data = ? WHERE report_id = ?"
+            self.cursor.execute(sql, (sqlite3.Binary(image_bytes), report_id))
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print(f"Failed to save image to DB: {e}")
+            return False
+
+    def retrieve_image_from_db(self, report_id):
+        """Fetches image BLOB for a specific report."""
+        try:
+            self.cursor.execute("SELECT Image_Data FROM patient_health_metrics WHERE report_id = ?", (report_id,))
+            row = self.cursor.fetchone()
+            return row[0] if row and row[0] else None
+        except Exception as e:
+            print(f"Error retrieving image: {e}")
+            return None
+
+    def search_patient(self, query):
+        """Searches by ID or Name."""
+        try:
+            if query.isdigit():
+                sql = "SELECT p.Name, p.Gender, m.* FROM patients p JOIN patient_health_metrics m ON p.patient_id = m.patient_id WHERE p.patient_id = ?"
+                params = (int(query),)
+            else:
+                sql = "SELECT p.Name, p.Gender, m.* FROM patients p JOIN patient_health_metrics m ON p.patient_id = m.patient_id WHERE p.Name LIKE ?"
+                params = (f"%{query}%",)
+            return pd.read_sql_query(sql, self.conn, params=params)
+        except Exception as e:
+            print(f"Search error: {e}")
+            return pd.DataFrame()
+
+    def get_total_count(self):
+        self.cursor.execute("SELECT COUNT(*) FROM patient_health_metrics")
+        return self.cursor.fetchone()[0]
 
     def close_connection(self):
-        """Closes the database safely."""
         self.conn.close()
         print("Database connection closed.")
