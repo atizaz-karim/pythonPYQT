@@ -148,28 +148,27 @@ class HealthcareApp(QMainWindow):
         for i in range(len(display_df)):
             for j, col in enumerate(display_df.columns):
                 val = display_df.iloc[i, j]
+                val_str = str(val).strip() if val is not None else ""
                 
-                # --- NEW: Check for ECG/EEG Signal Columns ---
-                if col in ['ECG_Signal', 'EEG_Signal']:
-                    val_str = str(val).strip() if val is not None else ""
-                    if val_str and val_str != "nan" and len(val_str) > 0:
-                        # Count number of data points by splitting commas
+                # Special formatting ONLY for ECG Signal
+                if col in ['ECG_Signal', 'ECG Signal']:
+                    if "," in val_str:
                         points = len(val_str.split(','))
-                        # Create a preview label: e.g., "📈 500 pts [0.12, 0.45...]"
-                        display_text = f"{points} pts [{val_str[:12]}...]"
+                        first_num = val_str.split(',')[0]
+                        display_text = f"{points} pts [{first_num}...]"
                     else:
                         display_text = "No Signal"
                 else:
-                    # Default handling for regular columns
-                    display_text = str(val) if val is not None else ""
+                    # Heart Rate, BP, etc. are now single numbers, so just show them
+                    display_text = val_str
 
                 self.table_widget.setItem(i, j, QTableWidgetItem(display_text))
 
-        # UI Fix: Don't resize Signal columns to full contents (they are too long)
+        # Adjust column widths
         header = self.table_widget.horizontalHeader()
         for i, col_name in enumerate(display_df.columns):
             if "Signal" in col_name:
-                self.table_widget.setColumnWidth(i, 160) # Keep signal columns compact
+                self.table_widget.setColumnWidth(i, 150)
             else:
                 header.setSectionResizeMode(i, QHeaderView.ResizeToContents)
         
