@@ -12,7 +12,7 @@ class DatabaseManager:
         self.create_tables()
 
     def create_tables(self):
-        """Creates the relational tables with a full schema including image support."""
+        """Creates the relational tables and handles migrations for new columns."""
         # 1. Table for unique patients
         create_patients_table = '''
         CREATE TABLE IF NOT EXISTS patients (
@@ -21,7 +21,7 @@ class DatabaseManager:
             Gender TEXT
         );
         '''
-        # 2. Table for health metrics including BLOB for image storage
+        # 2. Table for health metrics
         create_health_reports_table = '''
         CREATE TABLE IF NOT EXISTS patient_health_metrics (
             report_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,6 +37,8 @@ class DatabaseManager:
             Homocysteine_Level REAL,
             Heart_Disease_Status TEXT,
             ECG_Signal TEXT,
+            ECG_FFT_Magnitude TEXT,
+            Correlation_Data TEXT,
             EEG_Signal TEXT,
             Date_Recorded TEXT,
             Image_Data BLOB,
@@ -45,8 +47,36 @@ class DatabaseManager:
         '''
         self.cursor.execute(create_patients_table)
         self.cursor.execute(create_health_reports_table)
+        
+        # --- MIGRATION LOGIC ---
+        # If the DB existed before we added Correlation_Data, ALTER the table
+        try:
+            self.cursor.execute("SELECT Correlation_Data FROM patient_health_metrics LIMIT 1")
+        except sqlite3.OperationalError:
+            print("Migrating database: Adding Correlation_Data column...")
+            self.cursor.execute("ALTER TABLE patient_health_metrics ADD COLUMN Correlation_Data TEXT")
+            self.conn.commit()
+            
         self.conn.commit()
-        print("Tables ensured successfully with full schema (including Image BLOB).")
+        print("Tables ensured successfully with full schema.")
+
+    def update_correlation_data(self, patient_id, corr_string):
+        """Updates the most recent health report for a patient with correlation results."""
+        try:
+            # Targets the most recent report for this specific patient
+            sql = """
+                UPDATE patient_health_metrics 
+                SET Correlation_Data = ? 
+                WHERE report_id = (
+                    SELECT MAX(report_id) FROM patient_health_metrics WHERE patient_id = ?
+                )
+            """
+            self.cursor.execute(sql, (corr_string, patient_id))
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print(f"Database correlation update error: {e}")
+            return False
 
     def insert_patient_data(self, df_source):
         """Processes and inserts a DataFrame of patient data into the relational structure."""
@@ -221,10 +251,51 @@ class DatabaseManager:
         except Exception as e:
             print(f"Search error: {e}")
             return pd.DataFrame()
+        
+    def get_patient_images(self, patient_id):
+        """Returns a list of (report_id, Date_Recorded) for a specific patient."""
+        try:
+            # Only select rows where Image_Data is not NULL
+            sql = "SELECT report_id, Date_Recorded FROM patient_health_metrics WHERE patient_id = ? AND Image_Data IS NOT NULL"
+            self.cursor.execute(sql, (patient_id,))
+            return self.cursor.fetchall()
+        except Exception as e:
+            print(f"Error fetching images for patient {patient_id}: {e}")
+            return []
+        
+    def update_fft_data(self, patient_id, fft_string):
+        """Updates the most recent health report for a patient with FFT data."""
+        try:
+            # We target the most recent report for this patient
+            sql = """
+                UPDATE patient_health_metrics 
+                SET ECG_FFT_Magnitude = ? 
+                WHERE report_id = (
+                    SELECT MAX(report_id) FROM patient_health_metrics WHERE patient_id = ?
+                )
+            """
+            self.cursor.execute(sql, (fft_string, patient_id))
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print(f"Database update error: {e}")
+            return False
+    
+    def get_all_records_for_patient(self, patient_id):
+        """Fetches every record for a specific patient, regardless of pagination."""
+        query = """
+        SELECT m.*, p.Name, p.Gender 
+        FROM patient_health_metrics m
+        JOIN patients p ON m.patient_id = p.patient_id
+        WHERE m.patient_id = ?
+        ORDER BY m.Date_Recorded ASC
+        """
+        return pd.read_sql_query(query, self.conn, params=(patient_id,))
 
     def get_total_count(self):
         self.cursor.execute("SELECT COUNT(*) FROM patient_health_metrics")
         return self.cursor.fetchone()[0]
+    
 
     def close_connection(self):
         self.conn.close()

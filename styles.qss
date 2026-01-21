@@ -171,7 +171,7 @@ QPushButton#refreshIdButton {
 }
 
 /* DANGER (RED) */
-QPushButton#DeleteButton, QPushButton#ResetButton, QPushButton#HeatmapButton, QPushButton#VizHeatmapBtn {
+QPushButton#ResetButton, QPushButton#HeatmapButton, QPushButton#VizHeatmapBtn {
     background-color: #E76F51;
     color: white;
     border: 1px solid #D65F41;
@@ -223,3 +223,112 @@ QSlider::groove:horizontal {
     background: #EDF2F7;
     border-radius: 3px;
 }
+
+/* ============================================================ */
+/* 8. SPECIFIC IMAGE PROCESSING BUTTONS                        */
+/* ============================================================ */
+
+/* Edge Detection Button - Slate Blue/Grey */
+QPushButton#EdgeButton {
+    background-color: #2F5D8A;
+    width: 40px;
+    color: white;
+    border: 1px solid #1F3A5F;
+    border-radius: 4px;
+    padding: 8px;
+    font-weight: bold;
+}
+
+QPushButton#EdgeButton:hover {
+    background-color: #334155;
+}
+
+/* Threshold Button - Vibrant Blue */
+QPushButton#ThresholdButton {
+    background-color: #2F5D8A;
+    color: white;
+    border: 1px solid #1F3A5F;
+    border-radius: 4px;
+    padding: 8px;
+    font-weight: bold;
+}
+
+QPushButton#ThresholdButton:hover {
+    background-color: #2980B9;
+}
+
+/* Threshold Slider Styling */
+QSlider#ThresholdSlider::groove:horizontal {
+    border: 1px solid #D6DEE8;
+    height: 8px;
+    background: #F1F5F9;
+    margin: 2px 0;
+    border-radius: 4px;
+}
+
+QSlider#ThresholdSlider::handle:horizontal {
+    background: #3498DB;
+    border: 1px solid #2980B9;
+    width: 18px;
+    height: 18px;
+    margin: -5px 0;
+    border-radius: 9px;
+}
+
+/* Styling for the new column container */
+QFrame#ToolsColumnLeft {
+    background-color: #F8FAFC; /* Light grey/blue tint */
+    border: 1px solid #D1D5DB;
+    border-radius: 8px;
+    padding: 0px;
+}
+
+/* Optional: change spacing for labels just inside this column */
+QFrame#ToolsColumnLeft QLabel {
+    margin-top: 0px;
+    font-weight: bold;
+}
+
+/* Styling for the Column 1 Container */
+QFrame#ToolsColumnRight {
+    background-color: #F8FAFC; /* Light grey/blue tint */
+    border: 1px solid #D1D5DB;
+    border-radius: 8px;
+    padding: 10px;
+    margin: 2px;
+}
+
+/* CRUD Operation Buttons Styling */
+QPushButton#UpdateButton, 
+QPushButton#DeleteButton, 
+QPushButton#SearchButton, 
+QPushButton#ClearSearchButton {
+    max-width: 120px;
+    min-width: 120px;
+    padding: 6px 12px;
+    font-weight: bold;
+    border-radius: 4px;
+    color: white;
+}
+
+QPushButton#UpdateButton {
+    background-color: #F39C12; /* Orange */
+}
+
+QPushButton#DeleteButton {
+    background-color: #E74C3C; /* Red */
+}
+
+QPushButton#SearchButton {
+    background-color: #3498DB; /* Blue */
+}
+
+QPushButton#ClearSearchButton {
+    background-color: #95A5A6; /* Grey */
+}
+
+/* Hover effects for better UX */
+QPushButton#UpdateButton:hover { background-color: #E67E22; }
+QPushButton#DeleteButton:hover { background-color: #C0392B; }
+QPushButton#SearchButton:hover { background-color: #2980B9; }
+QPushButton#ClearSearchButton:hover { background-color: #7F8C8D; }
