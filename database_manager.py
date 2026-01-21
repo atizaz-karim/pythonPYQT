@@ -192,21 +192,72 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error fetching data: {e}")
             return pd.DataFrame()
-
+        
     def update_patient_data(self, patient_id, **kwargs):
-        """Updates specific fields in a patient record."""
-        update_fields = []
-        parameters = []
-        for key, value in kwargs.items():
-            db_column_name = key.replace(' ', '_')
-            update_fields.append(f"{db_column_name} = ?")
-            parameters.append(value)
+        """
+        Updates specific fields in a patient record.
+        Handles both the 'patients' identity table and the 'metrics' table.
+        """
+        if not kwargs: return 0
+        
+        # Define which columns belong to which table
+        patient_identity_fields = ['Name', 'Gender']
+        p_updates = {k: v for k, v in kwargs.items() if k in patient_identity_fields}
+        m_updates = {k: v for k, v in kwargs.items() if k not in patient_identity_fields}
+        
+        rows_affected = 0
+        try:
+            # Update Identity table (Name, Gender)
+            if p_updates:
+                sets = ", ".join([f"{k} = ?" for k in p_updates.keys()])
+                self.cursor.execute(f"UPDATE patients SET {sets} WHERE patient_id = ?", 
+                                   (*p_updates.values(), patient_id))
+                rows_affected += self.cursor.rowcount
+            
+            # Update Metrics table (Age, BP, etc.)
+            if m_updates:
+                sets = ", ".join([f"{k} = ?" for k in m_updates.keys()])
+                # This updates all reports for this specific patient
+                self.cursor.execute(f"UPDATE patient_health_metrics SET {sets} WHERE patient_id = ?", 
+                                   (*m_updates.values(), patient_id))
+                rows_affected += self.cursor.rowcount
+            
+            self.conn.commit()
+            return rows_affected
+        except Exception as e:
+            print(f"Database Update error: {e}")
+            if hasattr(self, 'conn'): self.conn.rollback()
+            return 0
 
-        if not update_fields: return
-        parameters.append(patient_id)
-        set_clause = ", ".join(update_fields)
-        self.cursor.execute(f"UPDATE patient_health_metrics SET {set_clause} WHERE patient_id = ?", tuple(parameters))
-        self.conn.commit()
+    def delete_patient_data(self, patient_id):
+        """
+        Deletes all health records and the patient identity.
+        Returns the number of patient records removed (0 if not found).
+        """
+        try:
+            # 1. Delete dependent health metrics first
+            self.cursor.execute("DELETE FROM patient_health_metrics WHERE patient_id = ?", (patient_id,))
+            
+            # 2. Delete the primary patient record
+            self.cursor.execute("DELETE FROM patients WHERE patient_id = ?", (patient_id,))
+            
+            # 3. Capture how many patients were actually removed (0 or 1)
+            rows_deleted = self.cursor.rowcount
+            
+            self.conn.commit()
+            return rows_deleted # Returns 1 if deleted, 0 if patient didn't exist
+
+        except Exception as e:
+            print(f"Database Error during Deletion: {e}")
+            if hasattr(self, 'conn'):
+                self.conn.rollback()
+            return 0
+
+        except Exception as e:
+            print(f"Database Error during Deletion: {e}")
+            if hasattr(self, 'conn'):
+                self.conn.rollback()
+            return 0
 
     def convert_to_binary(self, file_path):
         """Helper to convert image file to binary BLOB."""

@@ -493,30 +493,27 @@ class HealthcareApp(QMainWindow):
                     
         except Exception as e:
             print(f"Error updating analysis dropdowns: {e}")
-
     def _update_viz_dropdowns(self):
-        """Refreshes visualization dropdowns with numeric columns and biomedical signals."""
+        """Refreshes visualization dropdowns with numeric columns while locking FFT to signals."""
         if self.df is None or self.df.empty:
             return
             
         try:
-            # FIX: Define numerical_cols by selecting all numeric types from the dataframe
+            # Identify numerical columns for general dropdowns (Scatter/Time-Series)
             numerical_cols = self.df.select_dtypes(include=np.number).columns.tolist()
 
-            # Filter specifically for biomedical signals (ECG/EEG)
-            biomed_cols = [col for col in self.df.columns if 'EEG' in col.upper() or 'ECG' in col.upper()]
-            
-            # 1. Update Signal Selection Dropdown
+            # 1. Update Legacy Signal Selection Dropdown (if still used)
             if hasattr(self, 'signal_dropdown'):
+                # Filter specifically for biomedical signals in the dataframe for this specific dropdown
+                biomed_cols = [col for col in self.df.columns if 'EEG' in col.upper() or 'ECG' in col.upper()]
                 current_signal = self.signal_dropdown.currentText()
                 self.signal_dropdown.clear()
-                # Use biomed_cols if found, otherwise fall back to all numerical columns
                 items = biomed_cols if biomed_cols else numerical_cols
                 self.signal_dropdown.addItems(items if items else ["No Data"])
                 if current_signal in items:
                     self.signal_dropdown.setCurrentText(current_signal)
 
-            # 2. Update Scatter Plot X-Axis Dropdown
+            # 2. Update Scatter Plot X-Axis Dropdown (Dynamic)
             if hasattr(self, 'scatter_x_combo'):
                 current_x = self.scatter_x_combo.currentText()
                 self.scatter_x_combo.clear()
@@ -526,7 +523,7 @@ class HealthcareApp(QMainWindow):
                 elif len(numerical_cols) > 0:
                     self.scatter_x_combo.setCurrentIndex(0)
             
-            # 3. Update Scatter Plot Y-Axis Dropdown
+            # 3. Update Scatter Plot Y-Axis Dropdown (Dynamic)
             if hasattr(self, 'scatter_y_combo'):
                 current_y = self.scatter_y_combo.currentText()
                 self.scatter_y_combo.clear()
@@ -535,31 +532,22 @@ class HealthcareApp(QMainWindow):
                     self.scatter_y_combo.setCurrentText(current_y)
                 elif len(numerical_cols) > 1:
                     self.scatter_y_combo.setCurrentIndex(1)
-                elif len(numerical_cols) > 0:
-                    self.scatter_y_combo.setCurrentIndex(0)
             
-            # 4. Update Time-Series Column Dropdown
+            # 4. Update Time-Series Column Dropdown (Dynamic)
             if hasattr(self, 'ts_column_combo'):
                 current_ts = self.ts_column_combo.currentText()
                 self.ts_column_combo.clear()
                 self.ts_column_combo.addItems(numerical_cols if numerical_cols else [])
                 if current_ts in numerical_cols:
                     self.ts_column_combo.setCurrentText(current_ts)
-                elif len(numerical_cols) > 0:
-                    self.ts_column_combo.setCurrentIndex(0)
-            
-            # 5. Update FFT Spectrum Column Dropdown
+
+            # 5. FIX: Update FFT Spectrum Column Dropdown (Locked/Static)
+            # This ensures that even when data is loaded, this dropdown ONLY shows ECG/EEG
             if hasattr(self, 'fft_column_combo'):
-                current_fft = self.fft_column_combo.currentText()
                 self.fft_column_combo.clear()
-                self.fft_column_combo.addItems(numerical_cols if numerical_cols else [])
-                if current_fft in numerical_cols:
-                    self.fft_column_combo.setCurrentText(current_fft)
-                elif len(numerical_cols) > 0:
-                    self.fft_column_combo.setCurrentIndex(0)
+                self.fft_column_combo.addItems(["ECG", "EEG"])
                     
         except Exception as e:
-            # Print the error to the console for debugging
             print(f"Error updating visualization dropdowns: {e}")
 
     # --- DB HANDLERS (Unchanged logic) ---
@@ -700,8 +688,11 @@ class HealthcareApp(QMainWindow):
                 self.status_label.setText(f"Found {len(filtered)} records.")
             else:
                 QMessageBox.information(self, "No Results", "No matching patient found.")
+# Add this inside the HealthcareApp class in gui_app.py
     def db_update_prompt(self):
-        if not self._check_db_manager(): return
+        """Triggers the UI popup to select a column and update its value in the DB."""
+        if not hasattr(self, 'db_manager') or self.db_manager is None:
+            return
 
         # 1. Get the Patient ID from the input box
         patient_id_str = self.patient_id_input.text().strip()
@@ -710,9 +701,9 @@ class HealthcareApp(QMainWindow):
             return
         patient_id = int(patient_id_str)
         
-        # DYNAMIC FIX: Get all column names from the current dataframe
-        # Filter out 'patient_id' and 'report_id' as they shouldn't be manually edited
+        # 2. Determine available fields from current data
         if self.df is not None and not self.df.empty:
+            # Filter out IDs as they shouldn't be manually edited
             fields = [col for col in self.df.columns if 'id' not in col.lower()]
         else:
             QMessageBox.warning(self, "No Data", "No data available to determine column names.")
@@ -730,51 +721,52 @@ class HealthcareApp(QMainWindow):
                     # Create the update dictionary
                     update_kwargs = {field: new_value}
                     
-                    # Call the DB manager to execute the UPDATE SQL
-                    self.db_manager.update_patient_data(patient_id, **update_kwargs)
+                    # Execute the update in DatabaseManager
+                    rows = self.db_manager.update_patient_data(patient_id, **update_kwargs)
                     
-                    QMessageBox.information(self, "Success", f"Patient {patient_id} updated successfully.")
-                    
-                    # 5. Refresh the table to see changes immediately
-                    self.db_retrieve_data()
+                    if rows > 0:
+                        QMessageBox.information(self, "Success", f"Patient {patient_id} updated successfully.")
+                        # 5. Refresh the table to see changes immediately
+                        self.db_retrieve_data()
+                    else:
+                        QMessageBox.warning(self, "Not Found", f"No record found for Patient ID {patient_id}.")
                     
                 except Exception as e:
                     QMessageBox.critical(self, "DB Update Error", f"Failed to update record: {e}")
                     
 
     def db_delete_record(self):
+        """Permanently deletes a record and handles non-existent IDs."""
         if not self._check_db_manager(): return
 
         patient_id_str = self.patient_id_input.text().strip()
         if not patient_id_str.isdigit():
-            QMessageBox.warning(self, "Input Error", "Please enter a valid Patient ID (number) to delete.")
+            QMessageBox.warning(self, "Input Error", "Enter a valid Patient ID to delete.")
             return
         
         patient_id = int(patient_id_str)
-        
-        reply = QMessageBox.question(self, 'Confirm Deletion',
-                                     f"Are you sure you want to PERMANENTLY delete Patient ID {patient_id}?",
+        reply = QMessageBox.question(self, 'Confirm Deletion', f"Delete Patient ID {patient_id}?",
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         
         if reply == QMessageBox.Yes:
             try:
-                # Capture the rowcount returned by the manager
+                # The DB manager now returns 1 for success or 0 for 'not found'
                 rows_affected = self.db_manager.delete_patient_data(patient_id)
                 
                 if rows_affected > 0:
-                    # SUCCESS: ID existed and was removed
-                    QMessageBox.information(self, "Success", f"Patient ID {patient_id} deleted successfully.")
+                    # Success: Remove from local display and refresh
+                    if self.df is not None:
+                        self.df = self.df[self.df.iloc[:, 0].astype(str) != patient_id_str]
+                        self.populate_table(self.df)
+                    
                     self.patient_id_input.clear()
-                    self.db_retrieve_data() 
-                elif rows_affected == 0:
-                    # FAILURE: ID does not exist in the table
-                    QMessageBox.warning(self, "Not Found", f"Delete failed: No patient found with ID {patient_id}.")
+                    QMessageBox.information(self, "Patient ID", f"deleted {patient_id} sucessfully.")
                 else:
-                    # ERROR: A database exception occurred (-1)
-                    QMessageBox.critical(self, "Error", "A database error occurred during deletion.")
-                
+                    # Error: The patient ID was not found in the database
+                    QMessageBox.warning(self, "Error", f"Patient ID {patient_id} does not exists.")
+                    
             except Exception as e:
-                QMessageBox.critical(self, "DB Deletion Error", f"Failed to delete record: {e}")
+                QMessageBox.critical(self, "Error", f"Deletion failed: {e}")
 
 # --- Panel 2: Analysis ---
     def create_analysis_panel(self):
@@ -2179,12 +2171,13 @@ class HealthcareApp(QMainWindow):
         ax.set_ylabel("Amplitude")
         self.canvas.draw()
 
+# last tab 
 
     def create_data_visualization_panel(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
 
-        # Identify numerical columns
+        # Identify numerical columns for general dropdowns (Scatter and Time-Series)
         cols = []
         if self.df is not None and not self.df.empty:
             cols = self.df.select_dtypes(include=['number']).columns.tolist()
@@ -2196,48 +2189,52 @@ class HealthcareApp(QMainWindow):
         controls_group = QWidget()
         controls_group_layout = QGridLayout(controls_group)
         
-        # --- NEW: Patient ID Input ---
+        # --- 1) Patient ID Input (Universal for all plots in this tab) ---
         controls_group_layout.addWidget(QLabel("Patient ID:"), 0, 0)
         self.viz_patient_id_input = QLineEdit()
         self.viz_patient_id_input.setPlaceholderText("Enter Patient ID (Required for plots)")
         controls_group_layout.addWidget(self.viz_patient_id_input, 0, 1, 1, 4)
 
-        # --- Scatter Plot Controls (Moved to row 1) ---
+        # --- 2) Correlation / Scatter Plot (Metric 1 vs Metric 2) ---
         self.scatter_x_combo = QComboBox()
         self.scatter_x_combo.addItems(cols)
         self.scatter_y_combo = QComboBox()
         self.scatter_y_combo.addItems(cols)
-        self.scatter_plot_btn = QPushButton("Plot Scatter")
-        self.scatter_plot_btn.clicked.connect(self.plot_scatter)
+        self.scatter_plot_btn = QPushButton("Plot Correlation")
+        # Linked to single-patient correlation bridge
+        self.scatter_plot_btn.clicked.connect(self.plot_correlation_viz_bridge)
         
-        controls_group_layout.addWidget(QLabel("Scatter X:"), 1, 0)
+        controls_group_layout.addWidget(QLabel("Metric 1 (X):"), 1, 0)
         controls_group_layout.addWidget(self.scatter_x_combo, 1, 1)
-        controls_group_layout.addWidget(QLabel("Scatter Y:"), 1, 2)
+        controls_group_layout.addWidget(QLabel("Metric 2 (Y):"), 1, 2)
         controls_group_layout.addWidget(self.scatter_y_combo, 1, 3)
         controls_group_layout.addWidget(self.scatter_plot_btn, 1, 4)
 
-        # --- Time-Series (Row 2) ---
+        # --- 3) Time-Series (Filtered and Raw data logic) ---
         self.ts_column_combo = QComboBox()
         self.ts_column_combo.addItems(cols)
         self.ts_plot_btn = QPushButton("Plot Time-Series")
-        self.ts_plot_btn.clicked.connect(self.plot_time_series)
+        # Linked to single-patient time-series bridge
+        self.ts_plot_btn.clicked.connect(self.plot_timeseries_viz_bridge)
         
         controls_group_layout.addWidget(QLabel("Time-Series:"), 2, 0)
         controls_group_layout.addWidget(self.ts_column_combo, 2, 1, 1, 3)
         controls_group_layout.addWidget(self.ts_plot_btn, 2, 4)
 
-        # --- FFT Spectrum (Row 3) ---
+        # --- 4) FFT Spectrum (ECG or EEG Readings) ---
         self.fft_column_combo = QComboBox()
-        sig_cols = [c for c in self.df.columns if 'Signal' in c] if self.df is not None else []
-        self.fft_column_combo.addItems(sig_cols if sig_cols else ["ECG_Signal", "EEG_Signal"])
-        self.fft_plot_btn = QPushButton("Plot FFT Spectrum")
-        self.fft_plot_btn.clicked.connect(self.plot_fft_viz) 
+        # Strictly limited to these two options
+        self.fft_column_combo.addItems(["ECG", "EEG"])
         
-        controls_group_layout.addWidget(QLabel("FFT Spectrum:"), 3, 0)
+        self.fft_plot_btn = QPushButton("Plot FFT Spectrum")
+        # Linked to single-patient signal bridge
+        self.fft_plot_btn.clicked.connect(self.plot_fft_viz_bridge)
+        
+        controls_group_layout.addWidget(QLabel("Signal Source:"), 3, 0)
         controls_group_layout.addWidget(self.fft_column_combo, 3, 1, 1, 3)
         controls_group_layout.addWidget(self.fft_plot_btn, 3, 4)
         
-        # --- Heatmap & Image Processing (Row 4) ---
+        # --- 5) Heatmap & Image Processing ---
         self.heatmap_btn = QPushButton("Show Correlation Heatmap")
         self.heatmap_btn.clicked.connect(self.plot_heatmap)
         
@@ -2249,24 +2246,51 @@ class HealthcareApp(QMainWindow):
 
         layout.addWidget(controls_group)
         
-        # --- Canvas ---
+        # --- SHARED CANVAS: All plots above will clear and redraw here ---
         self.figure = Figure(figsize=(10, 8))
         self.canvas = FigureCanvas(self.figure)
+        # We assign viz_ax so our bridge functions know where to plot
+        self.viz_ax = self.figure.add_subplot(111) 
+        
         viz_scroll = QScrollArea()
         viz_scroll.setWidgetResizable(True)
         viz_scroll.setWidget(self.canvas)
         layout.addWidget(viz_scroll)
         
-        # Image Display Placeholder
+        # Image Display Placeholder (for image processing results)
         self.viz_image_label = QLabel("Image Visualization Placeholder")
         self.viz_image_label.setAlignment(Qt.AlignCenter)
         self.viz_image_label.setMinimumHeight(250) 
         layout.addWidget(self.viz_image_label) 
 
         return panel
+    
+    def plot_fft_viz_bridge(self):
+        """Plots FFT Spectrum for the selected patient's ECG or EEG signal."""
+        p_data = self.get_viz_patient_data()
+        if p_data is None: return
+        
+        selected_type = self.fft_column_combo.currentText() # "ECG" or "EEG"
+        db_col = "ECG_Signal" if selected_type == "ECG" else "EEG_Signal"
+        
+        try:
+            # Get latest signal from DB and compute FFT
+            signal_str = str(p_data.iloc[-1][db_col])
+            data = np.fromstring(signal_str, sep=',')
+            n = len(data)
+            freq = np.fft.rfftfreq(n, d=1/500)
+            mag = np.abs(np.fft.rfft(data))
+
+            self.viz_ax.clear()
+            self.viz_ax.plot(freq, mag, color='red')
+            self.viz_ax.set_title(f"FFT Spectrum: {selected_type} (Patient {self.viz_patient_id_input.text()})")
+            self.viz_ax.set_xlabel("Frequency (Hz)")
+            self.canvas.draw()
+        except Exception as e:
+            QMessageBox.critical(self, "Signal Error", f"No {selected_type} data found for this patient.")
 
     def get_viz_patient_data(self):
-        """Helper to get data filtered by Patient ID input."""
+        """Helper to get only the data for the patient selected in the Viz Tab."""
         p_id_str = self.viz_patient_id_input.text().strip()
         if not p_id_str:
             QMessageBox.warning(self, "Input Error", "Please enter a Patient ID first.")
@@ -2274,14 +2298,46 @@ class HealthcareApp(QMainWindow):
         
         try:
             p_id = int(p_id_str)
-            p_data = self.df[self.df['patient_id'] == p_id].sort_values('Date_Recorded')
+            # Pull full history from DB
+            p_data = self.db_manager.get_all_records_for_patient(p_id)
             if p_data.empty:
                 QMessageBox.information(self, "No Data", f"No records found for Patient {p_id}")
                 return None
-            return p_data
-        except ValueError:
-            QMessageBox.warning(self, "Input Error", "Patient ID must be a number.")
+            
+            # Standardize columns to match DB (replace spaces with underscores)
+            p_data.columns = [c.replace(' ', '_') for c in p_data.columns]
+            return p_data.sort_values('Date_Recorded')
+        except Exception as e:
+            QMessageBox.warning(self, "Input Error", f"Error fetching patient data: {e}")
             return None
+
+    def plot_correlation_viz_bridge(self):
+        """Plots correlation for the selected patient on the shared viz canvas."""
+        p_data = self.get_viz_patient_data()
+        if p_data is None: return
+        
+        m1 = self.scatter_x_combo.currentText().replace(' ', '_')
+        m2 = self.scatter_y_combo.currentText().replace(' ', '_')
+        
+        self.viz_ax.clear()
+        sns.regplot(x=m1, y=m2, data=p_data, ax=self.viz_ax, color='blue', scatter_kws={'s':50})
+        self.viz_ax.set_title(f"Correlation: {m1} vs {m2} (Patient {self.viz_patient_id_input.text()})")
+        self.canvas.draw()
+
+    def plot_timeseries_viz_bridge(self):
+        """Plots historical trend for the selected patient on the shared viz canvas."""
+        p_data = self.get_viz_patient_data()
+        if p_data is None: return
+        
+        metric = self.ts_column_combo.currentText().replace(' ', '_')
+        p_data['Date_Recorded'] = pd.to_datetime(p_data['Date_Recorded'])
+        
+        self.viz_ax.clear()
+        self.viz_ax.plot(p_data['Date_Recorded'], p_data[metric], marker='o', color='green', linewidth=2)
+        self.viz_ax.set_title(f"Historical Trend: {metric}")
+        self.viz_ax.set_xlabel("Time")
+        self.figure.autofmt_xdate()
+        self.canvas.draw()
 
     def plot_scatter(self):
         p_data = self.get_viz_patient_data()
