@@ -147,10 +147,10 @@ QScrollBar::handle:vertical:hover {
 
 /* PRIMARY ACTION (BLUE) */
 QPushButton#LoadCSVButton, QPushButton#RefreshTableButton, QPushButton#ScatterPlotButton, 
-QPushButton#LoadDisplaySignalButton, QPushButton#ComputeFFTButton, QPushButton#ApplyZoomButton, 
-QPushButton#GrayscaleButton, QPushButton#ApplyBlurButton, QPushButton#CannyEdgeButton, 
+QPushButton#DisplaySignalButton, QPushButton#ComputeFFTButton, QPushButton#ApplyZoom, 
+ QPushButton#ApplyBlurButton, 
 QPushButton#ApplyThresholdButton, QPushButton#VizScatterBtn, QPushButton#VizTimeSeriesBtn, 
-QPushButton#VizFFTBtn,QPushButton#saveButton, QPushButton#InsertButton, QPushButton#ApplyPlotButton, QPushButton#UploadImageButton {
+QPushButton#VizFFTBtn,QPushButton#saveButton, QPushButton#ApplyPlotButton, QPushButton#UploadImageButton {
     background-color: #2F5D8A;
     color: white;
     border: 1px solid #1F3A5F;
@@ -158,26 +158,73 @@ QPushButton#VizFFTBtn,QPushButton#saveButton, QPushButton#InsertButton, QPushBut
     padding: 8px;
     font-weight: bold;
 }
+QPushButton#LoadCSVButton:hover, QPushButton#RefreshTableButton:hover, QPushButton#ScatterPlotButton:hover, 
+QPushButton#DisplaySignalButton:hover, QPushButton#ComputeFFTButton:hover, QPushButton#ApplyZoom:hover, 
+ QPushButton#ApplyBlurButton:hover, 
+QPushButton#ApplyThresholdButton:hover, QPushButton#VizScatterBtn:hover, QPushButton#VizTimeSeriesBtn:hover, 
+QPushButton#VizFFTBtn:hover,QPushButton#saveButton:hover, QPushButton#ApplyPlotButton:hover, QPushButton#UploadImageButton:hover {
+    background-color:rgb(43, 81, 120);
+}
+QPushButton#LoadImageButton{
+    background-color: #2F5D8A;
+    color: white;
+    border: 1px solid #1F3A5F;
+    border-radius: 4px;
+    padding: 8px;
+    font-weight: bold;
+    height: 20px;
+}
+QPushButton#LoadImageButton:hover{
+    background-color:rgb(43, 81, 120);
+}
 
-
+QPushButton#AnalysisApplyPlotButton{
+    background-color: #2F5D8A;
+    color: white;
+    border: 1px solid #1F3A5F;
+    border-radius: 4px;
+    padding: 10px 20px;
+    font-weight: bold;
+}
+QPushButton#AnalysisApplyPlotButton:hover{
+    background-color:rgb(43, 81, 120);
+}
 /* REFRESH (LIGHT BLUE) */
 QPushButton#refreshIdButton {
-    background-color: #3498DB;
+    background-color: #2F5D8A;
     color: white;
-    border: 1px solid #2980B9;
-    border-radius: 6px;
+    border: 1px solid #1F3A5F;
+    border-radius: 4px;
     font-weight: bold;
-    min-height: 30px;
+    padding: 8px;
+    height: 20px;
+}
+QPushButton#refreshIdButton:hover {
+    background-color:rgb(43, 81, 120);
 }
 
 /* DANGER (RED) */
-QPushButton#ResetButton, QPushButton#HeatmapButton, QPushButton#VizHeatmapBtn {
+QPushButton#ResetButton, QPushButton#ResetView, QPushButton#HeatmapButton, QPushButton#VizHeatmapBtn {
     background-color: #E76F51;
     color: white;
     border: 1px solid #D65F41;
     border-radius: 4px;
     padding: 8px;
     font-weight: bold;
+}
+/* load past fft */
+
+QPushButton#LoadPastFFTButton {
+    background-color: #27AE60; /* Professional Green */
+    color: white;
+    font-weight: bold;
+    padding: 10px 16px;
+    border-radius: 4px;
+    min-width: 120px;
+}
+
+QPushButton#LoadPastFFTButton:hover {
+    background-color: #219150; /* Slightly darker green on hover */
 }
 
 /* PAGINATION */
@@ -228,18 +275,29 @@ QSlider::groove:horizontal {
 /* 8. SPECIFIC IMAGE PROCESSING BUTTONS                        */
 /* ============================================================ */
 
-/* Edge Detection Button - Slate Blue/Grey */
-QPushButton#EdgeButton {
+QPushButton#GrayscaleButton, 
+QPushButton#EdgeButton, 
+QPushButton#InsertButton, 
+QPushButton#ThresholdButton {
+    padding: 10px 15px; /* Adds vertical and horizontal padding to buttons */
+    font-weight: bold;
     background-color: #2F5D8A;
-    width: 40px;
     color: white;
     border: 1px solid #1F3A5F;
     border-radius: 4px;
-    padding: 8px;
-    font-weight: bold;
+    /* SETTING DIMENSIONS */
+    /* Width: Using min/max together makes the width "Fixed" */
+    min-width: 120px;
+    max-width: 120px;
+    
+    /* Height: Using height or min-height */
+    height: 20px;
 }
 
-QPushButton#EdgeButton:hover {
+QPushButton#EdgeButton:hover,
+QPushButton#GrayscaleButton:hover,
+QPushButton#InsertButton:hover, 
+QPushButton#ThresholdButton:hover {
     background-color: #334155;
 }
 
@@ -254,9 +312,37 @@ QPushButton#ThresholdButton {
 }
 
 QPushButton#ThresholdButton:hover {
-    background-color: #2980B9;
+    background-color: #334155;
+}
+/* Styling for Save Processed Button */
+QPushButton#SaveToDbButton {
+    background-color: #27AE60; /* Green */
+    color: white;
+    font-weight: bold;
+    font-size: 11pt;
+    border-radius: 6px;
+    padding: 10px 20px;
+    border: 1px solid #1E8449;
 }
 
+QPushButton#SaveToDbButton:hover {
+    background-color: #2ECC71;
+}
+
+/* Styling for Reset Button */
+QPushButton#ResetButton {
+    background-color: #E74C3C; /* Red/Coral */
+    color: white;
+    font-weight: bold;
+    font-size: 11pt;
+    border-radius: 6px;
+    padding: 10px 20px;
+    border: 1px solid #C0392B;
+}
+
+QPushButton#ResetButton:hover {
+    background-color: #FF5E4D;
+}
 /* Threshold Slider Styling */
 QSlider#ThresholdSlider::groove:horizontal {
     border: 1px solid #D6DEE8;
@@ -269,8 +355,8 @@ QSlider#ThresholdSlider::groove:horizontal {
 QSlider#ThresholdSlider::handle:horizontal {
     background: #3498DB;
     border: 1px solid #2980B9;
-    width: 18px;
-    height: 18px;
+    width: 12px;
+    height: 12px;
     margin: -5px 0;
     border-radius: 9px;
 }
@@ -327,8 +413,72 @@ QPushButton#ClearSearchButton {
     background-color: #95A5A6; /* Grey */
 }
 
+/* Increase the width of the patient selection input */
+#AnalysisPatientID, QComboBox#AnalysisPatientID {
+    min-width: 300px; /* Increased width */
+}
+
 /* Hover effects for better UX */
 QPushButton#UpdateButton:hover { background-color: #E67E22; }
 QPushButton#DeleteButton:hover { background-color: #C0392B; }
 QPushButton#SearchButton:hover { background-color: #2980B9; }
 QPushButton#ClearSearchButton:hover { background-color: #7F8C8D; }
+
+QDoubleSpinBox {
+    height: 30px;
+    padding: 2px;
+    border: 1px solid #D1D5DB;
+    border-radius: 4px;
+}
+
+/* Ensure the containers don't have conflicting internal margins */
+QFrame#ToolsColumnLeft, QFrame#ToolsColumnRight {
+    padding: 0px;
+}
+/* Already in your styles.qss */
+QPushButton#VizButton, 
+QPushButton#TimeSeriesButton, 
+QPushButton#FFTPlotButton {
+    background-color: #2F5D8A;
+    color: white;
+    border: 1px solid #1F3A5F;
+    color: white;
+    font-weight: bold;
+    padding: 10px 20px;
+    border-radius: 4px;
+}
+
+QPushButton#VizButton:hover, 
+QPushButton#TimeSeriesButton:hover, 
+QPushButton#FFTPlotButton:hover {
+    background-color: #334155;
+}
+/* Styling for Heatmap Button (Purple/Insight) */
+QPushButton#VizHeatmapButton {
+    background-color:rgb(172, 93, 25);
+    color: white;
+    font-weight: bold;
+    height: 38px;
+    border-radius: 4px;
+    min-width: 150px;
+    max-width: 150px;
+}
+
+QPushButton#VizHeatmapButton:hover {
+    background-color:rgb(147, 95, 12);
+}
+
+/* Styling for Process Medical Image Button (Teal/Action) */
+QPushButton#ProcessImageButton {
+    background-color: #27AE60;
+    color: white;
+    font-weight: bold;
+    height: 38px;
+    border-radius: 4px;
+    min-width: 150px;
+    max-width: 150px;
+}
+
+QPushButton#ProcessImageButton:hover {
+    background-color: #219150;
+}

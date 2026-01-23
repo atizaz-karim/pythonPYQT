@@ -314,22 +314,18 @@ class DatabaseManager:
             print(f"Error fetching images for patient {patient_id}: {e}")
             return []
         
-    def update_fft_data(self, patient_id, fft_string):
-        """Updates the most recent health report for a patient with FFT data."""
+    def save_new_fft_record(self, patient_id, fft_string):
+        """Creates a brand new record for the patient with only the FFT data."""
         try:
-            # We target the most recent report for this patient
             sql = """
-                UPDATE patient_health_metrics 
-                SET ECG_FFT_Magnitude = ? 
-                WHERE report_id = (
-                    SELECT MAX(report_id) FROM patient_health_metrics WHERE patient_id = ?
-                )
+                INSERT INTO patient_health_metrics (patient_id, Date_Recorded, ECG_FFT_Magnitude)
+                VALUES (?, DATETIME('now'), ?)
             """
-            self.cursor.execute(sql, (fft_string, patient_id))
+            self.cursor.execute(sql, (patient_id, fft_string))
             self.conn.commit()
             return True
         except Exception as e:
-            print(f"Database update error: {e}")
+            print(f"Database Insert Error: {e}")
             return False
     
     def get_all_records_for_patient(self, patient_id):
