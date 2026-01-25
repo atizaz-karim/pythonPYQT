@@ -42,12 +42,20 @@ class DatabaseManager:
             EEG_Signal TEXT,
             Date_Recorded TEXT,
             Image_Data BLOB,
+            Original_Image_Data BLOB,
             FOREIGN KEY (patient_id) REFERENCES patients(patient_id)
         );
         '''
         self.cursor.execute(create_patients_table)
         self.cursor.execute(create_health_reports_table)
-        
+        # Migration: Add column if it doesn't exist in an old database
+        try:
+            self.cursor.execute("SELECT Original_Image_Data FROM patient_health_metrics LIMIT 1")
+        except sqlite3.OperationalError:
+            print("Migrating: Adding Original_Image_Data column...")
+            self.cursor.execute("ALTER TABLE patient_health_metrics ADD COLUMN Original_Image_Data BLOB")
+            self.conn.commit()
+            
         # --- MIGRATION LOGIC ---
         # If the DB existed before we added Correlation_Data, ALTER the table
         try:
@@ -160,9 +168,13 @@ class DatabaseManager:
                     patient_id = result[0]
                 metrics_data['patient_id'] = patient_id
 
-            # CRITICAL: Convert raw bytes to SQLite Binary
+            # CRITICAL: Convert raw bytes to SQLite Binary for Processed Image
             if 'Image_Data' in metrics_data and metrics_data['Image_Data'] is not None:
                 metrics_data['Image_Data'] = sqlite3.Binary(metrics_data['Image_Data'])
+            
+            # NEW: Convert raw bytes to SQLite Binary for Original Image
+            if 'Original_Image_Data' in metrics_data and metrics_data['Original_Image_Data'] is not None:
+                metrics_data['Original_Image_Data'] = sqlite3.Binary(metrics_data['Original_Image_Data'])
 
             # Build and execute query
             columns = ', '.join(metrics_data.keys())
@@ -177,9 +189,9 @@ class DatabaseManager:
             return False
 
     def get_patient_data(self, limit=50, offset=0):
-        """Fetches data for the main table view."""
+        """Fetches data for the main table view using m.* to preserve all columns."""
         query = """
-        SELECT m.report_id, p.Name, p.Gender, m.*
+        SELECT p.Name, p.Gender, m.*
         FROM patients p
         JOIN patient_health_metrics m ON p.patient_id = m.patient_id
         ORDER BY m.Date_Recorded DESC
@@ -188,11 +200,35 @@ class DatabaseManager:
         try:
             df = pd.read_sql_query(query, self.conn, params=(limit, offset))
             # Remove duplicate patient_id column if present from JOIN
-            return df.loc[:, ~df.columns.duplicated()]
+            df = df.loc[:, ~df.columns.duplicated()]
+            return df
         except Exception as e:
             print(f"Error fetching data: {e}")
             return pd.DataFrame()
-        
+
+    def get_both_images(self, report_id):
+        """Strictly fetches Original first (index 0), then Processed (index 1)."""
+        try:
+            # We explicitly name the columns to guarantee the order
+            query = "SELECT Original_Image_Data, Image_Data FROM patient_health_metrics WHERE report_id = ?"
+            self.cursor.execute(query, (report_id,))
+            result = self.cursor.fetchone()
+            return result if result else (None, None)
+        except Exception as e:
+            print(f"Database Error: {e}")
+            return None, None
+
+    def get_original_image_blob(self, report_id):
+        """Fetches the untouched original image from the database."""
+        try:
+            query = "SELECT Original_Image_Data FROM patient_health_metrics WHERE report_id = ?"
+            self.cursor.execute(query, (report_id,))
+            result = self.cursor.fetchone()
+            return result[0] if result else None
+        except Exception as e:
+            print(f" Database Error fetching original image: {e}")
+            return None
+
     def update_patient_data(self, patient_id, **kwargs):
         """
         Updates specific fields in a patient record.
@@ -228,6 +264,16 @@ class DatabaseManager:
             print(f"Database Update error: {e}")
             if hasattr(self, 'conn'): self.conn.rollback()
             return 0
+
+    def update_processed_image(self, report_id, image_blob):
+        try:
+            sql = "UPDATE patient_health_metrics SET Image_Data = ? WHERE report_id = ?"
+            self.cursor.execute(sql, (sqlite3.Binary(image_blob), report_id))
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print(f"Database Update Error: {e}")
+            return False
 
     def delete_patient_data(self, patient_id):
         """

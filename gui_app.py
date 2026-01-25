@@ -13,7 +13,6 @@ from PyQt5.QtCore import QDateTime
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-# Add this line near your other imports
 from data_analyzer import fft_denoise_signal, analyze_ecg_signal, analyze_eeg_signal
 
 import pandas as pd
@@ -44,24 +43,16 @@ class HealthcareApp(QMainWindow):
 
         self.setWindowTitle("Healthcare Data and Medical Image Processing Tool")
         self.setGeometry(50, 50, 1400, 800)
-        
-        # 2. Setup the Scroll Area
         self.main_scroll = QScrollArea() 
         self.main_scroll.setObjectName("MainScrollArea") 
         self.main_scroll.setWidgetResizable(True)
         self.main_scroll.setFrameShape(QFrame.NoFrame)
-
-        # 3. Create the container widget
         container_widget = QWidget()
         self.main_scroll.setWidget(container_widget)
         
         # FIX: Remove the duplicate line that uses the wrong name
         self.setCentralWidget(self.main_scroll) 
-
-        # 4. DEFINE main_layout HERE
         main_layout = QHBoxLayout(container_widget)
-
-        # Now the following lines will work because main_layout is defined above
         self.sidebar = QWidget()
         self.sidebar.setObjectName("SidebarWidget")
         self.sidebar.setFixedWidth(250)
@@ -174,20 +165,17 @@ class HealthcareApp(QMainWindow):
                         display_text = "No FFT Data"
 
                 # 4. UPDATED CORRELATION COLUMN LOGIC
-                # This now shows the actual correlation text (e.g., "Corr: 0.85")
                 elif col == 'Correlation_Data':
                     if val_str and val_str.lower() != "nan" and val_str != "None":
                         display_text = val_str
                     else:
                         display_text = "N/A"
                 
-                # 5. Default formatting for standard metrics (Heart Rate, Age, etc.)
                 else:
                     display_text = val_str
 
                 item = QTableWidgetItem(display_text)
                 
-                # Center alignment for status and analysis placeholders
                 center_cols = [
                     'ECG_Signal', 'ECG Signal', 
                     'Image_Data', 'Image Data', 
@@ -199,15 +187,12 @@ class HealthcareApp(QMainWindow):
                 
                 self.table_widget.setItem(i, j, item)
 
-        # Adjust column widths for better readability
         header = self.table_widget.horizontalHeader()
         for i, col_name in enumerate(display_df.columns):
-            # Apply wider fixed width to complex data/analysis columns
             status_keywords = ["Signal", "Image", "FFT", "Correlation"]
             if any(key in col_name for key in status_keywords):
                 self.table_widget.setColumnWidth(i, 150)
             else:
-                # Standard numeric columns fit to their content
                 header.setSectionResizeMode(i, QHeaderView.ResizeToContents)
         
         self.table_widget.setToolTip(
@@ -250,7 +235,6 @@ class HealthcareApp(QMainWindow):
         manual_layout.setSpacing(15) 
         manual_layout.setContentsMargins(20, 20, 20, 20)
 
-        # Row 0: Name and Age
         manual_layout.addWidget(QLabel("Patient Name:"), 0, 0)
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Full Name")
@@ -262,7 +246,6 @@ class HealthcareApp(QMainWindow):
         self.age_input.setSuffix(" yrs")
         manual_layout.addWidget(self.age_input, 0, 3)
 
-        # Row 1: Gender and Blood Pressure
         manual_layout.addWidget(QLabel("Gender:"), 1, 0)
         self.gender_input = QComboBox()
         self.gender_input.addItems(["Male", "Female", "Other"])
@@ -274,7 +257,6 @@ class HealthcareApp(QMainWindow):
         self.bp_input.setSuffix(" mmHg")
         manual_layout.addWidget(self.bp_input, 1, 3)
 
-        # Row 2: Cholesterol and BMI
         manual_layout.addWidget(QLabel("Cholesterol:"), 2, 0)
         self.chol_input = QDoubleSpinBox()
         self.chol_input.setRange(100, 400)
@@ -286,7 +268,6 @@ class HealthcareApp(QMainWindow):
         self.bmi_input.setRange(10, 60)
         manual_layout.addWidget(self.bmi_input, 2, 3)
 
-        # Row 3: Blood Sugar and Status
         manual_layout.addWidget(QLabel("Fasting Blood Sugar:"), 3, 0)
         self.sugar_input = QDoubleSpinBox()
         self.sugar_input.setRange(50, 300)
@@ -298,7 +279,6 @@ class HealthcareApp(QMainWindow):
         self.status_input.addItems(["Negative", "Positive"])
         manual_layout.addWidget(self.status_input, 3, 3)
 
-        # Row 4: ECG and EEG Data (Now clearly in Row 4)
         manual_layout.addWidget(QLabel("ECG Signal (CSV):"), 4, 0)
         self.ecg_input = QLineEdit()
         self.ecg_input.setPlaceholderText("e.g., 0.1, 0.5, 0.8...")
@@ -309,21 +289,19 @@ class HealthcareApp(QMainWindow):
         self.eeg_input.setPlaceholderText("e.g., -20, 15, 30...")
         manual_layout.addWidget(self.eeg_input, 4, 3)
 
-        # Row 5: Date of Record (Moved to Row 5 to avoid overlap)
         manual_layout.addWidget(QLabel("Date of Record:"), 5, 0)
-        # Ensure QDateTimeEdit and QDateTime are imported from PyQt5.QtWidgets/QtCore
         self.date_input = QDateTimeEdit(QDateTime.currentDateTime())
         self.date_input.setCalendarPopup(True) 
         manual_layout.addWidget(self.date_input, 5, 1)
-        # Assign ID for CSS
         self.date_input.setObjectName("dateInput")
 
         manual_layout.addWidget(QLabel("Medical Image:"), 5, 2)
         self.image_path_input = QLineEdit()
         self.image_path_input.setPlaceholderText("Select image path...")
-        self.image_path_input.setReadOnly(True) # Path updated via button
+        self.image_path_input.setReadOnly(True)
         
         self.browse_img_btn = QPushButton("Browse")
+        self.browse_img_btn.setObjectName("BrowseButton")
         self.browse_img_btn.clicked.connect(self.browse_patient_image)
         
         image_hb = QHBoxLayout()
@@ -331,25 +309,22 @@ class HealthcareApp(QMainWindow):
         image_hb.addWidget(self.browse_img_btn)
         manual_layout.addLayout(image_hb, 5, 3)
 
-        # Row 6: Submit Button (Moved to Row 6)
         self.add_patient_btn = QPushButton("Save Patient Record")
         self.add_patient_btn.setMinimumHeight(40)
         self.add_patient_btn.setObjectName("saveButton")
         self.add_patient_btn.clicked.connect(self.manual_db_insert)
         
-        # Grid parameters: (widget, row, column, rowSpan, columnSpan)
         manual_layout.addWidget(self.add_patient_btn, 6, 0, 1, 4)
 
         layout.addWidget(manual_entry_group)
         
 # --- Database CRUD Operations Section ---
-        # --- Database CRUD Operations Section ---
         db_ops_group = QWidget()
         db_ops_group.setObjectName("DbOpsGroup")
         db_ops_layout = QGridLayout(db_ops_group)
         db_ops_layout.setSpacing(10)
 
-        db_ops_layout.addWidget(QLabel("### Database CRUD Operations"), 0, 0, 1, 4)
+        db_ops_layout.addWidget(QLabel(""), 0, 0, 1, 4)
 
         # Column 1: Patient ID and Action Buttons (Horizontal)
         db_ops_layout.addWidget(QLabel("Patient ID:"), 1, 0)
@@ -556,26 +531,42 @@ class HealthcareApp(QMainWindow):
             QMessageBox.critical(self, "DB Error", "Database Manager is not initialized. Check your main.py setup.")
             return False
         return True
+    
     def db_retrieve_data(self):
         if not self._check_db_manager(): return
         try:
             offset = self.current_page * self.rows_per_page
             
-            # 1. Fetch fresh data from DB
+            # 1. Fetch fresh data from DB (actual BLOB data is retrieved here)
             retrieved_df = self.db_manager.get_patient_data(limit=self.rows_per_page, offset=offset) 
             
-            # 2. CRITICAL FIX: Overwrite self.df instead of appending/merging
-            # This ensures the view starts fresh with only what is currently in the DB
+            # 2. Update internal data states
             self.df = retrieved_df.copy()
             self.filtered_df = self.df.copy()
             
-            # 3. Clear and Re-populate the table widget
-            self.populate_table(self.df)
+            # 3. Create a DISPLAY version of the DataFrame for the table UI
+            # We use a copy so we don't destroy the actual image bytes in self.df
+            display_df = self.df.copy()
+
+            # Mask 'Original_Image_Data' column with friendly text
+    # Friendly text for Images (Matches your request)
+            if 'Original_Image_Data' in display_df.columns:
+                display_df['Original_Image_Data'] = display_df['Original_Image_Data'].apply(
+                    lambda x: "Original Image Saved" if x is not None else "No Image"
+                )
+            if 'Image_Data' in display_df.columns:
+                display_df['Image_Data'] = display_df['Image_Data'].apply(
+                    lambda x: "Processed Image Saved" if x is not None else "No Image"
+            )
+
+            # 4. Clear and Re-populate the table widget using the MASKED data
+            self.populate_table(display_df)
             
             # Update UI components
             self._update_viz_dropdowns()
             self._update_analysis_dropdowns()
             
+            # Update Pagination UI
             total_records = self.db_manager.get_total_count()
             total_pages = (total_records // self.rows_per_page) + (1 if total_records % self.rows_per_page > 0 else 0)
             self.page_label.setText(f"Page {self.current_page + 1} of {max(1, total_pages)}")
@@ -628,7 +619,8 @@ class HealthcareApp(QMainWindow):
                 "ECG_Signal": self.ecg_input.text().strip(),
                 "EEG_Signal": self.eeg_input.text().strip(),
                 "Date_Recorded": record_date,
-                "Image_Data": image_blob  # This maps to the BLOB column
+                "Image_Data": image_blob ,
+                "Original_Image_Data": image_blob # This maps to the BLOB column
             }
 
             # 5. Insert via specialized manual record method
@@ -1830,7 +1822,7 @@ class HealthcareApp(QMainWindow):
 
         # Button: Find All Images (Styled via #refreshIdButton in QSS)
         self.btn_find_images = QPushButton("Find All Images")
-        self.btn_find_images.setObjectName("refreshIdButton")
+        self.btn_find_images.setObjectName("FindImgsButton")
         self.btn_find_images.clicked.connect(self.populate_image_list)
         col0_layout.addWidget(self.btn_find_images)
         
@@ -2075,35 +2067,52 @@ class HealthcareApp(QMainWindow):
         # 3. Populate dropdown if images exist
         for report_id, date in records:
             display_text = f"Record ID: {report_id} | Date: {date}"
+            # Store the report_id as the hidden data for retrieval
             self.image_selection_combo.addItem(display_text, report_id)
         
         self.image_selection_combo.setEnabled(True)
         self.image_selection_combo.blockSignals(False)
         
-        # Optional: Automatically load the first one found
-        self.image_selection_combo.setCurrentIndex(0)
-        self.load_selected_patient_image()
+        # 4. Automatically load the first one found
+        # This will trigger the display of the Original and a copy for Processing
+        if self.image_selection_combo.count() > 0:
+            self.image_selection_combo.setCurrentIndex(0)
+            self.load_selected_patient_image()
 
     def load_selected_patient_image(self):
-        """Loads the specific image BLOB based on the combo box selection."""
-        # Get the report_id we stored in the item data
+        """Loads the ORIGINAL image into both containers and links the report ID for saving."""
+        # 1. Get the report_id from the dropdown data
         report_id = self.image_selection_combo.currentData()
-        if report_id is None:
+        
+        if not report_id:
+            # Clear current ID if nothing is selected
+            self.current_report_id = None
             return
 
-        image_data = self.db_manager.retrieve_image_from_db(report_id)
-        
-        if image_data:
-            # Convert BLOB to OpenCV format
-            nparr = np.frombuffer(image_data, np.uint8)
-            self.cv_image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        # 2. Store the ID globally in the class so 'save_processed_image_to_db' can use it
+        self.current_report_id = report_id
+
+        # 3. Fetch the 'Original_Image_Data' from the DB
+        img_data = self.db_manager.get_original_image_blob(report_id)
+
+        if img_data:
+            # Convert bytes to OpenCV format
+            nparr = np.frombuffer(img_data, np.uint8)
+            decoded_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
             
-            # Track this ID so 'Save' updates the correct row later
-            self.current_analysis_report_id = report_id 
-            
-            # Update the UI display
-            self.display_image(self.cv_image, self.original_image_label)
-            self.processed_image_label.setText("Image Loaded. Ready for processing.")
+            if decoded_img is not None:
+                # Set the permanent original and the editable copy
+                self.cv_image = decoded_img
+                self.processed_cv_image = self.cv_image.copy()
+                
+                # 4. Display in the UI containers
+                # Note: Ensure self.display_image is the method you use to show CV2 images in QLabels
+                self.display_image(self.cv_image, self.original_image_label)
+                self.display_image(self.processed_cv_image, self.processed_image_label)
+            else:
+                QMessageBox.warning(self, "Image Error", "Failed to decode the image from database.")
+        else:
+            QMessageBox.warning(self, "Database Error", "No original image data found for this record.")
     
     # def load_patient_image_list(self):
     #     """Populates the dropdown with all images found for the patient ID."""
@@ -2140,31 +2149,38 @@ class HealthcareApp(QMainWindow):
     #         self.current_analysis_report_id = report_id # Track which record we are editing
 
     def save_processed_image_to_db(self):
-        """Encodes the processed OpenCV image and saves it back to the database."""
+        """
+        Encodes the processed OpenCV image and updates the 'Image_Data' column.
+        The 'Original_Image_Data' remains untouched.
+        """
+        # 1. Check if an image actually exists in the processor
         if not hasattr(self, 'processed_cv_image') or self.processed_cv_image is None:
             QMessageBox.warning(self, "Save Error", "No processed image found to save.")
             return
             
-        if not hasattr(self, 'current_analysis_report_id'):
-            QMessageBox.warning(self, "Save Error", "No active record linked to this image.")
+        # 2. Use 'current_report_id' which was set during load_selected_patient_image
+        if not hasattr(self, 'current_report_id') or self.current_report_id is None:
+            QMessageBox.warning(self, "Save Error", "No active record linked to this image. Please select an image from the list first.")
             return
 
         try:
-            # Convert processed OpenCV image to bytes
+            # 3. Convert processed OpenCV image to bytes (PNG format)
             success, buffer = cv2.imencode(".png", self.processed_cv_image)
             if not success:
                 raise ValueError("Image encoding failed")
             
             image_bytes = buffer.tobytes()
 
-            # Call DB manager to update the BLOB
-            # Note: Ensure your DatabaseManager has save_image_to_db(report_id, image_bytes)
-            success = self.db_manager.save_image_to_db(self.current_analysis_report_id, image_bytes)
+            # 4. Call DB manager to update ONLY the processed Image_Data column
+            # We use the variable self.current_report_id to target the specific row
+            success = self.db_manager.update_processed_image(self.current_report_id, image_bytes)
             
             if success:
                 QMessageBox.information(self, "Success", "Processed image saved to database successfully.")
+                # Automatically refresh the Visualization tab to show the new pair
+                self.update_viz_image()
             else:
-                QMessageBox.critical(self, "Error", "Failed to update database record.")
+                QMessageBox.critical(self, "Error", "Failed to update database record. Ensure update_processed_image exists in DB Manager.")
                 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save image: {str(e)}")
@@ -2301,48 +2317,54 @@ class HealthcareApp(QMainWindow):
             self.update_viz_image()
 
 
-# Inside HealthcareApp class in gui_app.py
     def update_viz_image(self):
         """
-        Updates the image processing visualization. 
-        Uses the ID from the Image Processing tab input.
+        Updates the visualization tab with Original (Left) and Processed (Right).
+        Works for both the Image Processing tab and the Data Visualization tab.
         """
-        # 1. Get the patient ID from the correct widget
-        patient_id = self.id_patient_input.text().strip()
+        # 1. SMART INPUT CHECK: Try Visualization Input first, then Image Processing Input
+        # This allows the function to work from EITHER tab.
+        patient_id = self.viz_patient_id_input.text().strip()
+        if not patient_id:
+            patient_id = self.id_patient_input.text().strip()
+            
         if not patient_id or not patient_id.isdigit():
+            self.viz_image_label.setText("Please enter a Patient ID in the input box.")
             return
 
         try:
-            # 2. Get the list of images for this patient
-            # Note: Using the correct method name 'get_patient_images'
+            # 2. Get image records
             records = self.db_manager.get_patient_images(int(patient_id))
-            
             if not records:
-                self.viz_image_label.setText("No medical image found for this patient.")
+                self.viz_image_label.setText(f"No images found for Patient {patient_id}.")
                 return
 
-            # 3. Get the most recent image ID (last record in the list)
+            # 3. Get the latest report
             latest_report_id = records[-1][0]
             
-            # 4. Fetch the actual image BLOB
-            # Note: Using 'retrieve_image_from_db' instead of 'get_latest_image'
-            img_data = self.db_manager.retrieve_image_from_db(latest_report_id)
+            # 4. Fetch BOTH blobs (Original & Processed) using your new DB method
+            orig_blob, proc_blob = self.db_manager.get_both_images(latest_report_id)
             
-            if img_data:
-                nparr = np.frombuffer(img_data, np.uint8)
-                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                
-                if img is not None:
-                    # Perform Edge Detection for comparison
-                    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                    edges = cv2.Canny(gray, 100, 200)
-                    edges_bgr = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
+            if orig_blob and proc_blob:
+                # 5. Decode images
+                orig_img = cv2.imdecode(np.frombuffer(orig_blob, np.uint8), cv2.IMREAD_COLOR)
+                proc_img = cv2.imdecode(np.frombuffer(proc_blob, np.uint8), cv2.IMREAD_COLOR)
+
+                if orig_img is not None and proc_img is not None:
+                    # 6. Channel Correction (Grayscale -> BGR)
+                    if len(proc_img.shape) == 2:
+                        proc_img = cv2.cvtColor(proc_img, cv2.COLOR_GRAY2BGR)
+
+                    # 7. Size Correction (Match Heights)
+                    h1, w1 = orig_img.shape[:2]
+                    h2, w2 = proc_img.shape[:2]
+                    if h1 != h2:
+                        proc_img = cv2.resize(proc_img, (int(w2 * h1 / h2), h1))
+
+                    # 8. Stack and Display
+                    combined = np.hstack((orig_img, proc_img))
                     
-                    # Stack original and processed images side-by-side
-                    combined = np.hstack((img, edges_bgr))
                     h, w, ch = combined.shape
-                    
-                    # Convert to QImage for display
                     qimg = QImage(combined.data, w, h, w * ch, QImage.Format_RGB888).rgbSwapped()
                     
                     self.viz_image_label.setPixmap(QPixmap.fromImage(qimg).scaled(
@@ -2350,13 +2372,13 @@ class HealthcareApp(QMainWindow):
                         self.viz_image_label.height(), 
                         Qt.KeepAspectRatio))
                 else:
-                    self.viz_image_label.setText("Error decoding image.")
+                    self.viz_image_label.setText("Error: Could not decode images.")
             else:
-                self.viz_image_label.setText("No image data found.")
+                self.viz_image_label.setText("Missing data: Ensure both Original and Processed images are saved.")
                 
         except Exception as e:
-            # Added more detailed error tracking to see why it fails
-            print(f"Debug - Image Viz Error: {e}")
+            print(f"Viz Update Error: {e}")
+            self.viz_image_label.setText(f"Error: {str(e)}")
 
     def run_ma(self):
         col = self.ts_analysis_column.currentText()
@@ -2497,7 +2519,7 @@ class HealthcareApp(QMainWindow):
         
         self.img_proc_btn = QPushButton("Process Medical Image")
         self.img_proc_btn.setObjectName("ProcessImageButton")
-        self.img_proc_btn.clicked.connect(self.process_patient_image_viz)
+        self.img_proc_btn.clicked.connect(self.update_viz_image)
         
         # Add buttons to the internal container layout
         viz_buttons_layout.addWidget(self.heatmap_btn)
@@ -2893,31 +2915,31 @@ class HealthcareApp(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Heatmap Error", f"An error occurred: {str(e)}")
 
-    def process_patient_image_viz(self):
-        """Fetches patient image from DB, processes it, and displays in the label."""
-        p_id_str = self.viz_patient_id_input.text().strip()
-        if not p_id_str or not self.db_manager: return
+    # def process_patient_image_viz(self):
+    #     """Fetches patient image from DB, processes it, and displays in the label."""
+    #     p_id_str = self.viz_patient_id_input.text().strip()
+    #     if not p_id_str or not self.db_manager: return
 
-        # Query latest image BLOB
-        query = "SELECT Image_Data FROM patient_health_metrics WHERE patient_id = ? AND Image_Data IS NOT NULL ORDER BY Date_Recorded DESC LIMIT 1"
-        self.db_manager.cursor.execute(query, (int(p_id_str),))
-        res = self.db_manager.cursor.fetchone()
+    #     # Query latest image BLOB
+    #     query = "SELECT Image_Data FROM patient_health_metrics WHERE patient_id = ? AND Image_Data IS NOT NULL ORDER BY Date_Recorded DESC LIMIT 1"
+    #     self.db_manager.cursor.execute(query, (int(p_id_str),))
+    #     res = self.db_manager.cursor.fetchone()
 
-        if res and res[0]:
-            nparr = np.frombuffer(res[0], np.uint8)
-            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    #     if res and res[0]:
+    #         nparr = np.frombuffer(res[0], np.uint8)
+    #         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
             
-            # Side-by-side processing: Original | Edges
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            edges = cv2.Canny(gray, 100, 200)
-            edges_bgr = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
+    #         # Side-by-side processing: Original | Edges
+    #         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    #         edges = cv2.Canny(gray, 100, 200)
+    #         edges_bgr = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
             
-            combined = np.hstack((img, edges_bgr))
-            h, w, ch = combined.shape
-            qimg = QImage(combined.data, w, h, w * ch, QImage.Format_RGB888).rgbSwapped()
-            self.viz_image_label.setPixmap(QPixmap.fromImage(qimg).scaled(self.viz_image_label.width(), self.viz_image_label.height(), Qt.KeepAspectRatio))
-        else:
-            self.viz_image_label.setText("No medical image found for this patient.")
+    #         combined = np.hstack((img, edges_bgr))
+    #         h, w, ch = combined.shape
+    #         qimg = QImage(combined.data, w, h, w * ch, QImage.Format_RGB888).rgbSwapped()
+    #         self.viz_image_label.setPixmap(QPixmap.fromImage(qimg).scaled(self.viz_image_label.width(), self.viz_image_label.height(), Qt.KeepAspectRatio))
+    #     else:
+    #         self.viz_image_label.setText("No medical image found for this patient.")
 
     def load_next_page(self):
         self.current_page += 1
