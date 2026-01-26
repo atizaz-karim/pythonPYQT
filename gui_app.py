@@ -5,10 +5,13 @@ from PyQt5.QtWidgets import (
     QSpinBox, QMessageBox, QGridLayout, QInputDialog, QDoubleSpinBox,
     QFrame, QGroupBox, QHeaderView
 )
+
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtWidgets import QDateTimeEdit
 from PyQt5.QtCore import QDateTime
+import matplotlib
+matplotlib.use('Qt5Agg')
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -1498,7 +1501,9 @@ class HealthcareApp(QMainWindow):
             self.spectrum_ax.set_xlabel("Frequency Bin")
             self.spectrum_ax.set_ylabel("Power / Magnitude")
             self.spectrum_ax.grid(True, linestyle=':', alpha=0.6)
-            
+            self.spectrum_canvas.draw()  # Force the update
+            from PyQt5.QtWidgets import QApplication
+            QApplication.processEvents()
             self.spectrum_canvas.draw()
             
         except Exception as e:
@@ -1684,6 +1689,9 @@ class HealthcareApp(QMainWindow):
             self.spectrum_ax.set_xlabel("Frequency (Hz)")
             self.spectrum_ax.set_ylabel("Magnitude")
             self.spectrum_ax.grid(True, linestyle='--', alpha=0.5)
+            self.spectrum_canvas.draw_idle() # Queue the draw
+            from PyQt5.QtWidgets import QApplication
+            QApplication.processEvents()
             self.spectrum_canvas.draw()
 
             # 6. SAVE AS NEW HISTORY RECORD IF CHECKED
@@ -2145,7 +2153,12 @@ class HealthcareApp(QMainWindow):
             success = self.db_manager.update_processed_image(self.current_report_id, image_bytes)
             
             if success:
+                # IMPORTANT: Refresh the internal dataframe so all tabs have the latest DB data
+                if self.db_manager:
+                    self.db_retrieve_data()
+                
                 QMessageBox.information(self, "Success", "Processed image saved to database successfully.")
+                
                 # Automatically refresh the Visualization tab to show the new pair
                 self.update_viz_image()
             else:
@@ -2289,10 +2302,13 @@ class HealthcareApp(QMainWindow):
     def update_viz_image(self):
         """
         Updates the visualization tab with Original (Left) and Processed (Right).
-        Works for both the Image Processing tab and the Data Visualization tab.
+        Supports fetching the latest image by default and choosing old records.
         """
+        # Force a refresh of the internal dataframe to ensure the app sees the latest DB state
+        if self.db_manager:
+            self.db_retrieve_data()
+
         # 1. SMART INPUT CHECK: Try Visualization Input first, then Image Processing Input
-        # This allows the function to work from EITHER tab.
         patient_id = self.viz_patient_id_input.text().strip()
         if not patient_id:
             patient_id = self.id_patient_input.text().strip()
@@ -2302,17 +2318,39 @@ class HealthcareApp(QMainWindow):
             return
 
         try:
-            # 2. Get image records
+            # 2. Get image records for this patient
             records = self.db_manager.get_patient_images(int(patient_id))
             if not records:
                 self.viz_image_label.setText(f"No images found for Patient {patient_id}.")
                 return
 
-            # 3. Get the latest report
-            latest_report_id = records[-1][0]
-            
-            # 4. Fetch BOTH blobs (Original & Processed) using your new DB method
-            orig_blob, proc_blob = self.db_manager.get_both_images(latest_report_id)
+            # --- LOGIC TO FETCH LATEST VS OLD ---
+            # If more than one record exists, ask the user which one they want to see.
+            # Otherwise, just take the latest one.
+            if len(records) > 1:
+                # Create a list of strings for the user to choose from (Report ID + Date)
+                # Assuming records contains (report_id, date_recorded, ...)
+                options = [f"Record {r[0]} (Latest)" if i == len(records)-1 else f"Record {r[0]}" 
+                           for i, r in enumerate(records)]
+                
+                # Show a selection dialog
+                item, ok = QInputDialog.getItem(self, "Select Image", 
+                                                f"Multiple images found for Patient {patient_id}:", 
+                                                options, len(options)-1, False)
+                if ok and item:
+                    # Extract the Report ID from the selected string
+                    selected_index = options.index(item)
+                    target_report_id = records[selected_index][0]
+                else:
+                    # If user cancels, default to the latest
+                    target_report_id = records[-1][0]
+            else:
+                # Only one record exists, use the latest (and only) one
+                target_report_id = records[-1][0]
+            # ------------------------------------
+
+            # 4. Fetch BOTH blobs (Original & Processed) for the specific target_report_id
+            orig_blob, proc_blob = self.db_manager.get_both_images(target_report_id)
             
             if orig_blob and proc_blob:
                 # 5. Decode images
@@ -2340,10 +2378,13 @@ class HealthcareApp(QMainWindow):
                         self.viz_image_label.width(), 
                         self.viz_image_label.height(), 
                         Qt.KeepAspectRatio))
+                    
+                    # Optional: update status or label to show which record is being viewed
+                    self.status_label.setText(f"Viewing Record ID: {target_report_id} for Patient {patient_id}")
                 else:
                     self.viz_image_label.setText("Error: Could not decode images.")
             else:
-                self.viz_image_label.setText("Missing data: Ensure both Original and Processed images are saved.")
+                self.viz_image_label.setText(f"Missing data for Record {target_report_id}.")
                 
         except Exception as e:
             print(f"Viz Update Error: {e}")
@@ -2488,7 +2529,7 @@ class HealthcareApp(QMainWindow):
         
         self.img_proc_btn = QPushButton("Process Medical Image")
         self.img_proc_btn.setObjectName("ProcessImageButton")
-        self.img_proc_btn.clicked.connect(self.update_viz_image)
+        self.img_proc_btn.clicked.connect(self.process_medical_image_viz_refresh)
         
         # Add buttons to the internal container layout
         viz_buttons_layout.addWidget(self.heatmap_btn)
@@ -2732,6 +2773,30 @@ class HealthcareApp(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Plotting Error", f"Failed to plot time series: {str(e)}")
 
+    def process_medical_image_viz_refresh(self):
+        """
+        Handler for the 'Process Medical Image' button in the Viz Tab.
+        Ensures the local data is fresh and the display shows the most recent record.
+        """
+        # 1. Sync the app with the database to get latest processed results
+        if self.db_manager:
+            self.db_retrieve_data()
+
+        # 2. Extract the patient ID to focus on
+        patient_id = self.viz_patient_id_input.text().strip()
+        if not patient_id:
+            patient_id = self.id_patient_input.text().strip()
+
+        if not patient_id:
+            self.viz_image_label.setText("Please enter a Patient ID to view latest images.")
+            return
+
+        # 3. Trigger the visualization update logic
+        # This will now use the refreshed records to find the highest report_id
+        self.update_viz_image()
+        
+        self.status_label.setText(f"Visualization refreshed for Patient {patient_id}.")
+
     # def plot_scatter(self):
     #     p_data = self.get_viz_patient_data()
     #     if p_data is None: return
@@ -2937,6 +3002,8 @@ if __name__ == '__main__':
         'Heart_Disease_Status': np.random.choice(['Yes', 'No'], 50)
     }
     dummy_df = pd.DataFrame(data)
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
     app = QApplication(sys.argv)
     window = HealthcareApp(dummy_df, db_manager=None) 

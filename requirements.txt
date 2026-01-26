@@ -1,6 +1,40 @@
-pandas
-numpy
-matplotlib
-seaborn
-plotly
-PyQt5
+# --- Core Frameworks ---
+PyQt5           # Provides the User Interface (buttons, tabs, windows)
+
+# --- Data Science & Math ---
+pandas          # Handles CSV loading and database record management
+numpy           # Performs fast numerical calculations and array handling
+scipy           # Powers signal processing and FFT analysis
+neurokit2       # Specialized medical library for cleaning ECG/EEG signals
+
+# --- Visualization ---
+matplotlib      # Primary engine for drawing graphs and charts
+seaborn         # Creates high-quality correlation heatmaps
+
+# --- Image Processing ---
+opencv-python   # (cv2) Used for X-ray, MRI, and CT scan processing
+Pillow          # Image handling and format conversion support
+
+# Step 1: Open Terminal/Command Prompt
+# Navigate to the folder where you saved the app files:
+
+ # Windows: cd C:\path\to\your\project
+
+# Mac/Linux: cd /Users/documents/your_project
+
+# step 2 how to run the app 
+
+# Create the environment
+# python -m venv venv
+
+# Activate it:
+# On Windows:
+# venv\Scripts\activate
+# On Mac/Linux:
+# source venv/bin/activate
+
+
+# Step 3: Install the Requirements
+# pip install -r requirements.txt
+
+# python main.py

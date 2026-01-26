@@ -207,15 +207,32 @@ class DatabaseManager:
             return pd.DataFrame()
 
     def get_both_images(self, report_id):
-        """Strictly fetches Original first (index 0), then Processed (index 1)."""
+        """
+        Strictly fetches Original first (index 0), then Processed (index 1) 
+        for a specific report_id. This allows the GUI to target either 
+        historical records or the most recent processing session.
+        """
         try:
-            # We explicitly name the columns to guarantee the order
-            query = "SELECT Original_Image_Data, Image_Data FROM patient_health_metrics WHERE report_id = ?"
+            # We explicitly name the columns to guarantee index 0 is Original 
+            # and index 1 is Processed, regardless of table schema updates.
+            query = """
+                SELECT Original_Image_Data, Image_Data 
+                FROM patient_health_metrics 
+                WHERE report_id = ?
+            """
             self.cursor.execute(query, (report_id,))
             result = self.cursor.fetchone()
-            return result if result else (None, None)
+            
+            # If a record is found, return the tuple (orig_blob, proc_blob)
+            # If not found, return (None, None) to prevent unpacking errors in GUI
+            if result:
+                return result
+            else:
+                print(f"Warning: No image data found for Report ID {report_id}")
+                return None, None
+                
         except Exception as e:
-            print(f"Database Error: {e}")
+            print(f"Database Error in get_both_images: {e}")
             return None, None
 
     def get_original_image_blob(self, report_id):
@@ -352,8 +369,13 @@ class DatabaseManager:
     def get_patient_images(self, patient_id):
         """Returns a list of (report_id, Date_Recorded) for a specific patient."""
         try:
-            # Only select rows where Image_Data is not NULL
-            sql = "SELECT report_id, Date_Recorded FROM patient_health_metrics WHERE patient_id = ? AND Image_Data IS NOT NULL"
+            # We fetch report_id and Date_Recorded to allow selection between old/new
+            sql = """
+                SELECT report_id, Date_Recorded 
+                FROM patient_health_metrics 
+                WHERE patient_id = ? AND Image_Data IS NOT NULL
+                ORDER BY report_id ASC
+            """
             self.cursor.execute(sql, (patient_id,))
             return self.cursor.fetchall()
         except Exception as e:
