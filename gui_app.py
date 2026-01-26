@@ -53,7 +53,6 @@ class HealthcareApp(QMainWindow):
         container_widget = QWidget()
         self.main_scroll.setWidget(container_widget)
         
-        # FIX: Remove the duplicate line that uses the wrong name
         self.setCentralWidget(self.main_scroll) 
         main_layout = QHBoxLayout(container_widget)
         self.sidebar = QWidget()
@@ -132,7 +131,6 @@ class HealthcareApp(QMainWindow):
             'Homocysteine_Level', 'Homocysteine Level'
         ]
         
-        # Filter out excluded columns
         display_df = df.drop(columns=[col for col in columns_to_exclude if col in df.columns], errors='ignore')
 
         self.table_widget.setRowCount(len(display_df))
@@ -144,7 +142,6 @@ class HealthcareApp(QMainWindow):
                 val = display_df.iloc[i, j]
                 val_str = str(val).strip() if val is not None else ""
                 
-                # 1. Special formatting for ECG Signal (Previews point count)
                 if col in ['ECG_Signal', 'ECG Signal']:
                     if "," in val_str:
                         points = len(val_str.split(','))
@@ -153,30 +150,24 @@ class HealthcareApp(QMainWindow):
                     else:
                         display_text = "No Signal"
                 
-                # 2. Image Column Logic (Strict Check)
                 elif col in ['Image_Data', 'Image Data', 'Original_Image_Data']:
                     val_str = str(val).strip()
                     
-                    # Priority 1: Use the friendly text we already set in db_retrieve_data
                     if val_str in ["Original Image Saved", "Processed Image Saved", "No Image"]:
                         display_text = val_str
                     
-                    # Priority 2: If it's a raw value, check if it's actually data or just empty text
                     elif val_str not in ["", "None", "nan", "NULL"]:
                         display_text = "Image Stored"
                     
-                    # Priority 3: Default to No Image
                     else:
                         display_text = "No Image"
 
-                # 3. FFT Column Logic
                 elif col == 'ECG_FFT_Magnitude':
                     if "," in val_str and len(val_str) > 10:
                         display_text = "FFT Computed"
                     else:
                         display_text = "No FFT Data"
 
-                # 4. UPDATED CORRELATION COLUMN LOGIC
                 elif col == 'Correlation_Data':
                     if val_str and val_str.lower() != "nan" and val_str != "None":
                         display_text = val_str
@@ -213,7 +204,6 @@ class HealthcareApp(QMainWindow):
             "Actual results are shown for Correlation analysis."
         )
 
-# --- Panel 1: Data Management (CRUD) ---
     def create_data_management_panel(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
@@ -230,18 +220,11 @@ class HealthcareApp(QMainWindow):
         self.load_csv_btn.setObjectName("LoadCSVButton")
         self.load_csv_btn.setToolTip("Browse and load data from a local CSV file.")
         self.load_csv_btn.clicked.connect(self.load_csv)
-
-        # self.db_connect_btn = QPushButton("Refresh Table")
-        # self.db_connect_btn.setObjectName("RefreshTableButton")
-        # self.db_connect_btn.setToolTip("Retrieves all patient records from the database and loads them into the table.")
-        # self.db_connect_btn.clicked.connect(self.db_retrieve_data) 
         
         source_layout.addWidget(self.load_csv_btn)
-        # source_layout.addWidget(self.db_connect_btn)
         source_layout.addStretch()
         layout.addWidget(source_group)
 
-# --- New Manual Entry Section ---
         manual_entry_group = QGroupBox("Manual Patient Entry & Diagnostics")
         manual_layout = QGridLayout(manual_entry_group)
         manual_layout.setSpacing(15) 
@@ -420,10 +403,8 @@ class HealthcareApp(QMainWindow):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select CSV", "", "CSV Files (*.csv)")
         if file_path:
             try:
-                # 1. Read CSV
                 new_df = pd.read_csv(file_path)
                 
-                # 2. Automatically save and refresh
                 if self.db_manager:
                     self.db_manager.insert_patient_data(new_df)
                     self.current_page = 0
@@ -2027,11 +2008,9 @@ class HealthcareApp(QMainWindow):
             QMessageBox.warning(self, "Input Error", "Please enter a numeric Patient ID.")
             return
 
-        # 1. Clear previous entries and disable while loading
         self.image_selection_combo.blockSignals(True)
         self.image_selection_combo.clear()
         
-        # 2. Fetch from DB
         records = self.db_manager.get_patient_images(int(patient_id_text))
         
         if not records:
@@ -2041,49 +2020,36 @@ class HealthcareApp(QMainWindow):
             QMessageBox.information(self, "No Images", f"No images found for Patient ID {patient_id_text}")
             return
 
-        # 3. Populate dropdown if images exist
         for report_id, date in records:
             display_text = f"Record ID: {report_id} | Date: {date}"
-            # Store the report_id as the hidden data for retrieval
             self.image_selection_combo.addItem(display_text, report_id)
         
         self.image_selection_combo.setEnabled(True)
         self.image_selection_combo.blockSignals(False)
         
-        # 4. Automatically load the first one found
-        # This will trigger the display of the Original and a copy for Processing
         if self.image_selection_combo.count() > 0:
             self.image_selection_combo.setCurrentIndex(0)
             self.load_selected_patient_image()
 
     def load_selected_patient_image(self):
-        """Loads the ORIGINAL image into both containers and links the report ID for saving."""
-        # 1. Get the report_id from the dropdown data
         report_id = self.image_selection_combo.currentData()
         
         if not report_id:
-            # Clear current ID if nothing is selected
             self.current_report_id = None
             return
 
-        # 2. Store the ID globally in the class so 'save_processed_image_to_db' can use it
         self.current_report_id = report_id
 
-        # 3. Fetch the 'Original_Image_Data' from the DB
         img_data = self.db_manager.get_original_image_blob(report_id)
 
         if img_data:
-            # Convert bytes to OpenCV format
             nparr = np.frombuffer(img_data, np.uint8)
             decoded_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
             
             if decoded_img is not None:
-                # Set the permanent original and the editable copy
                 self.cv_image = decoded_img
                 self.processed_cv_image = self.cv_image.copy()
                 
-                # 4. Display in the UI containers
-                # Note: Ensure self.display_image is the method you use to show CV2 images in QLabels
                 self.display_image(self.cv_image, self.original_image_label)
                 self.display_image(self.processed_cv_image, self.processed_image_label)
             else:
@@ -2091,75 +2057,31 @@ class HealthcareApp(QMainWindow):
         else:
             QMessageBox.warning(self, "Database Error", "No original image data found for this record.")
     
-    # def load_patient_image_list(self):
-    #     """Populates the dropdown with all images found for the patient ID."""
-    #     p_id = self.patient_id_input.text().strip()
-    #     if not p_id:
-    #         return
-
-    #     self.image_selector_dropdown.clear()
-    #     images = self.db_manager.get_patient_image_list(p_id)
-        
-    #     if not images:
-    #         QMessageBox.information(self, "No Images", "No images found for this Patient ID.")
-    #         return
-
-    #     for report_id, date in images:
-    #         # Store the report_id as hidden data in the combo box
-    #         self.image_selector_dropdown.addItem(f"Image ID: {report_id} ({date})", report_id)
-
-    # def load_image_from_selection(self):
-    #     """Retrieves and displays the image selected in the dropdown."""
-    #     # Get the report_id we stored in the item's data
-    #     report_id = self.image_selector_dropdown.currentData()
-    #     if report_id is None:
-    #         return
-
-    #     # Use your existing retrieve_image_from_db method
-    #     image_data = self.db_manager.retrieve_image_from_db(report_id)
-        
-    #     if image_data:
-    #         # Convert BLOB back to OpenCV format
-    #         nparr = np.frombuffer(image_data, np.uint8)
-    #         self.cv_image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    #         self.display_image(self.cv_image, self.original_image_label)
-    #         self.current_analysis_report_id = report_id # Track which record we are editing
 
     def save_processed_image_to_db(self):
-        """
-        Encodes the processed OpenCV image and updates the 'Image_Data' column.
-        The 'Original_Image_Data' remains untouched.
-        """
-        # 1. Check if an image actually exists in the processor
         if not hasattr(self, 'processed_cv_image') or self.processed_cv_image is None:
             QMessageBox.warning(self, "Save Error", "No processed image found to save.")
             return
             
-        # 2. Use 'current_report_id' which was set during load_selected_patient_image
         if not hasattr(self, 'current_report_id') or self.current_report_id is None:
             QMessageBox.warning(self, "Save Error", "No active record linked to this image. Please select an image from the list first.")
             return
 
         try:
-            # 3. Convert processed OpenCV image to bytes (PNG format)
             success, buffer = cv2.imencode(".png", self.processed_cv_image)
             if not success:
                 raise ValueError("Image encoding failed")
             
             image_bytes = buffer.tobytes()
 
-            # 4. Call DB manager to update ONLY the processed Image_Data column
-            # We use the variable self.current_report_id to target the specific row
             success = self.db_manager.update_processed_image(self.current_report_id, image_bytes)
             
             if success:
-                # IMPORTANT: Refresh the internal dataframe so all tabs have the latest DB data
                 if self.db_manager:
                     self.db_retrieve_data()
                 
                 QMessageBox.information(self, "Success", "Processed image saved to database successfully.")
                 
-                # Automatically refresh the Visualization tab to show the new pair
                 self.update_viz_image()
             else:
                 QMessageBox.critical(self, "Error", "Failed to update database record. Ensure update_processed_image exists in DB Manager.")
@@ -2168,20 +2090,16 @@ class HealthcareApp(QMainWindow):
             QMessageBox.critical(self, "Error", f"Failed to save image: {str(e)}")
 
     def reset_image_view(self):
-        """Clears the image display labels and resets internal image variables."""
-        # 1. Clear the UI Labels
         self.original_image_label.clear()
         self.original_image_label.setText("No image loaded")
         
         self.processed_image_label.clear()
         self.processed_image_label.setText("Result will appear here")
         
-        # 2. Reset the internal OpenCV variables
         self.cv_image = None
         self.processed_cv_image = None
         self.current_analysis_report_id = None
         
-        # 3. Clear the Patient ID input
         if hasattr(self, 'id_fetch_input'):
             self.id_fetch_input.clear()
             
@@ -2300,15 +2218,9 @@ class HealthcareApp(QMainWindow):
 
 
     def update_viz_image(self):
-        """
-        Updates the visualization tab with Original (Left) and Processed (Right).
-        Supports fetching the latest image by default and choosing old records.
-        """
-        # Force a refresh of the internal dataframe to ensure the app sees the latest DB state
         if self.db_manager:
             self.db_retrieve_data()
 
-        # 1. SMART INPUT CHECK: Try Visualization Input first, then Image Processing Input
         patient_id = self.viz_patient_id_input.text().strip()
         if not patient_id:
             patient_id = self.id_patient_input.text().strip()
@@ -2318,57 +2230,40 @@ class HealthcareApp(QMainWindow):
             return
 
         try:
-            # 2. Get image records for this patient
             records = self.db_manager.get_patient_images(int(patient_id))
             if not records:
                 self.viz_image_label.setText(f"No images found for Patient {patient_id}.")
                 return
 
-            # --- LOGIC TO FETCH LATEST VS OLD ---
-            # If more than one record exists, ask the user which one they want to see.
-            # Otherwise, just take the latest one.
             if len(records) > 1:
-                # Create a list of strings for the user to choose from (Report ID + Date)
-                # Assuming records contains (report_id, date_recorded, ...)
                 options = [f"Record {r[0]} (Latest)" if i == len(records)-1 else f"Record {r[0]}" 
                            for i, r in enumerate(records)]
                 
-                # Show a selection dialog
                 item, ok = QInputDialog.getItem(self, "Select Image", 
                                                 f"Multiple images found for Patient {patient_id}:", 
                                                 options, len(options)-1, False)
                 if ok and item:
-                    # Extract the Report ID from the selected string
                     selected_index = options.index(item)
                     target_report_id = records[selected_index][0]
                 else:
-                    # If user cancels, default to the latest
                     target_report_id = records[-1][0]
             else:
-                # Only one record exists, use the latest (and only) one
                 target_report_id = records[-1][0]
-            # ------------------------------------
-
-            # 4. Fetch BOTH blobs (Original & Processed) for the specific target_report_id
             orig_blob, proc_blob = self.db_manager.get_both_images(target_report_id)
             
             if orig_blob and proc_blob:
-                # 5. Decode images
                 orig_img = cv2.imdecode(np.frombuffer(orig_blob, np.uint8), cv2.IMREAD_COLOR)
                 proc_img = cv2.imdecode(np.frombuffer(proc_blob, np.uint8), cv2.IMREAD_COLOR)
 
                 if orig_img is not None and proc_img is not None:
-                    # 6. Channel Correction (Grayscale -> BGR)
                     if len(proc_img.shape) == 2:
                         proc_img = cv2.cvtColor(proc_img, cv2.COLOR_GRAY2BGR)
 
-                    # 7. Size Correction (Match Heights)
                     h1, w1 = orig_img.shape[:2]
                     h2, w2 = proc_img.shape[:2]
                     if h1 != h2:
                         proc_img = cv2.resize(proc_img, (int(w2 * h1 / h2), h1))
 
-                    # 8. Stack and Display
                     combined = np.hstack((orig_img, proc_img))
                     
                     h, w, ch = combined.shape
@@ -2379,7 +2274,6 @@ class HealthcareApp(QMainWindow):
                         self.viz_image_label.height(), 
                         Qt.KeepAspectRatio))
                     
-                    # Optional: update status or label to show which record is being viewed
                     self.status_label.setText(f"Viewing Record ID: {target_report_id} for Patient {patient_id}")
                 else:
                     self.viz_image_label.setText("Error: Could not decode images.")
@@ -2394,7 +2288,6 @@ class HealthcareApp(QMainWindow):
         col = self.ts_analysis_column.currentText()
         win = self.ma_window.value()
         
-        # FIX: Use the full patient history if available, otherwise fall back to self.df
         target_df = getattr(self, 'current_patient_analysis_df', self.df)
         
         if target_df is None or target_df.empty or col not in target_df.columns:
@@ -2402,12 +2295,10 @@ class HealthcareApp(QMainWindow):
             return
 
         from data_analyzer import apply_moving_average
-        # Apply the moving average to the FULL history
         self.filtered_df = apply_moving_average(target_df, col, win)
         
         self.analysis_ax.clear()
         
-        # Plotting logic
         if self.ts_raw_checkbox.isChecked():
             self.analysis_ax.plot(target_df[col].values, label="Raw History", alpha=0.4, color='gray', marker='o')
         
@@ -2432,7 +2323,6 @@ class HealthcareApp(QMainWindow):
         col = self.fft_column_combo.currentText()
         if not col: return
         
-        # Clean data for FFT
         y = self.df[col].dropna().values
         n = len(y)
         if n == 0: return
@@ -2448,33 +2338,28 @@ class HealthcareApp(QMainWindow):
         ax.set_ylabel("Amplitude")
         self.canvas.draw()
 
-# last tab 
 
     def create_data_visualization_panel(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
 
-        # Identify numerical columns for general dropdowns
         cols = []
         if self.df is not None and not self.df.empty:
             cols = self.df.select_dtypes(include=['number']).columns.tolist()
 
         title = QLabel("Data Visualization")
         title.setObjectName("PanelTitle")
-        # Apply some styling to make it clear we are in the Viz tab
         title.setStyleSheet("font-size: 18px; font-weight: bold; color: #2C3E50; margin-bottom: 10px;")
         layout.addWidget(title)
         
         controls_group = QGroupBox("Visualization Controls")
         controls_group_layout = QGridLayout(controls_group)
         
-        # --- 1) Patient ID Input ---
         controls_group_layout.addWidget(QLabel("Patient ID:"), 0, 0)
         self.viz_patient_id_input = QLineEdit()
         self.viz_patient_id_input.setPlaceholderText("Enter Patient ID (Required for plots)")
         controls_group_layout.addWidget(self.viz_patient_id_input, 0, 1, 1, 4)
 
-        # --- 2) Correlation / Scatter Plot ---
         self.scatter_x_combo = QComboBox()
         self.scatter_x_combo.addItems(cols)
         self.scatter_y_combo = QComboBox()
@@ -2489,7 +2374,6 @@ class HealthcareApp(QMainWindow):
         controls_group_layout.addWidget(self.scatter_y_combo, 1, 3)
         controls_group_layout.addWidget(self.scatter_plot_btn, 1, 4)
 
-        # --- 3) Time-Series ---
         self.ts_column_combo = QComboBox()
         self.ts_column_combo.addItems(cols)
         self.ts_plot_btn = QPushButton("Plot Time-Series")
@@ -2500,7 +2384,6 @@ class HealthcareApp(QMainWindow):
         controls_group_layout.addWidget(self.ts_column_combo, 2, 1, 1, 3)
         controls_group_layout.addWidget(self.ts_plot_btn, 2, 4)
 
-        # --- 4) FFT Spectrum ---
         self.fft_column_combo = QComboBox()
         self.fft_column_combo.addItems(["ECG", "EEG"])
         self.fft_plot_btn = QPushButton("Plot FFT Spectrum")
@@ -2511,18 +2394,12 @@ class HealthcareApp(QMainWindow):
         controls_group_layout.addWidget(self.fft_column_combo, 3, 1, 1, 3)
         controls_group_layout.addWidget(self.fft_plot_btn, 3, 4)
         
-        # --- 5) Heatmap & Image Processing ---
-        
-# --- Create a Container for the Heatmap and Process Image Buttons ---
         self.viz_buttons_container = QWidget()
         viz_buttons_layout = QHBoxLayout(self.viz_buttons_container)
         
-        # SPACE BETWEEN BUTTONS: Set spacing to 20 pixels
         viz_buttons_layout.setSpacing(20)
-        # Remove margins so the container fits perfectly in the grid
         viz_buttons_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Define Buttons
         self.heatmap_btn = QPushButton("Show Correlation Heatmap")
         self.heatmap_btn.setObjectName("VizHeatmapButton")
         self.heatmap_btn.clicked.connect(self.plot_heatmap)
@@ -2531,20 +2408,15 @@ class HealthcareApp(QMainWindow):
         self.img_proc_btn.setObjectName("ProcessImageButton")
         self.img_proc_btn.clicked.connect(self.process_medical_image_viz_refresh)
         
-        # Add buttons to the internal container layout
         viz_buttons_layout.addWidget(self.heatmap_btn)
         viz_buttons_layout.addWidget(self.img_proc_btn)
         
-        # Push the buttons to the left (Optional: add stretch at the end)
         viz_buttons_layout.addStretch()
 
-        # Add the CONTAINER to your grid layout instead of the individual buttons
-        # Spanning multiple columns (e.g., col 0 to col 5) ensures it has enough room
         controls_group_layout.addWidget(self.viz_buttons_container, 4, 0, 1, 5)
 
         layout.addWidget(controls_group)
         
-        # --- FIXED SHARED CANVAS Logic ---
         self.viz_figure = Figure(figsize=(10, 8))
         self.viz_canvas = FigureCanvas(self.viz_figure)
         self.viz_ax = self.viz_figure.add_subplot(111) 
@@ -2554,11 +2426,9 @@ class HealthcareApp(QMainWindow):
         viz_scroll.setWidget(self.viz_canvas)
         layout.addWidget(viz_scroll)
         
-        # --- Patient Image Records Section ---
         image_records_group = QGroupBox("Patient Image Records")
         image_records_layout = QVBoxLayout(image_records_group)
 
-        # Labels for Original vs Processed side-by-side
         image_header_layout = QHBoxLayout()
         
         self.lbl_original_title = QLabel("Original Image")
@@ -2568,12 +2438,11 @@ class HealthcareApp(QMainWindow):
         self.lbl_process_description.setStyleSheet("font-weight: bold; color: #34495E;")
         
         image_header_layout.addWidget(self.lbl_original_title)
-        image_header_layout.addStretch() # Pushes the next label to the right
+        image_header_layout.addStretch() 
         image_header_layout.addWidget(self.lbl_process_description)
         
         image_records_layout.addLayout(image_header_layout)
 
-        # Image Display Label
         self.viz_image_label = QLabel("No processed images to display")
         self.viz_image_label.setAlignment(Qt.AlignCenter)
         self.viz_image_label.setMinimumHeight(250)
@@ -2586,11 +2455,6 @@ class HealthcareApp(QMainWindow):
         return panel
     
     def plot_fft_viz_bridge(self):
-        """
-        Computes and plots FFT in the Visualization tab.
-        FIX: Searches history to find the row containing the RAW SIGNAL, 
-        ignoring records that only contain saved FFT results.
-        """
         p_data = self.get_viz_patient_data()
         
         if p_data is None or p_data.empty:
@@ -2601,9 +2465,6 @@ class HealthcareApp(QMainWindow):
         target_col = f"{signal_type}_Signal" if f"{signal_type}_Signal" in p_data.columns else signal_type
 
         try:
-            # --- THE CORE FIX ---
-            # We filter out any rows where the Signal is 'None', NULL, or empty.
-            # This ignores the 'FFT-only' records and finds the original signal record.
             valid_rows = p_data[
                 p_data[target_col].notna() & 
                 (p_data[target_col].astype(str) != 'None') & 
@@ -2614,27 +2475,21 @@ class HealthcareApp(QMainWindow):
                 QMessageBox.warning(self, "Missing Data", f"No raw {signal_type} signal found in history to analyze.")
                 return
 
-            # Grab the most recent row that actually has a signal
             raw_val = valid_rows[target_col].iloc[-1]
-            # --------------------
 
             signal_str = str(raw_val).strip()
-            # Clean string (removing brackets, quotes, newlines)
             clean_str = signal_str.replace('[', '').replace(']', '').replace('"', '').replace("'", "").replace("\n", "")
             
-            # Convert to numpy
             if "," not in clean_str and " " in clean_str:
                 clean_str = clean_str.replace(" ", ",")
             
             signal_data = np.array([float(x) for x in clean_str.split(',') if x.strip()])
             
-            # FFT Calculation
             denoised = fft_denoise_signal(signal_data)
             n = len(denoised)
             freqs = np.fft.rfftfreq(n, d=1/500)
             magnitudes = np.abs(np.fft.rfft(denoised))
 
-            # Reset and Plot
             self.viz_figure.clear()
             self.viz_ax = self.viz_figure.add_subplot(111)
             self.viz_ax.plot(freqs, magnitudes, color='#E74C3C')
@@ -2645,7 +2500,6 @@ class HealthcareApp(QMainWindow):
             QMessageBox.critical(self, "Processing Error", f"Failed: {str(e)}")
 
     def get_viz_patient_data(self):
-        """Helper to get only the data for the patient selected in the Viz Tab."""
         p_id_str = self.viz_patient_id_input.text().strip()
         if not p_id_str:
             QMessageBox.warning(self, "Input Error", "Please enter a Patient ID first.")
@@ -2653,13 +2507,11 @@ class HealthcareApp(QMainWindow):
         
         try:
             p_id = int(p_id_str)
-            # Pull full history from DB
             p_data = self.db_manager.get_all_records_for_patient(p_id)
             if p_data.empty:
                 QMessageBox.information(self, "No Data", f"No records found for Patient {p_id}")
                 return None
             
-            # Standardize columns to match DB (replace spaces with underscores)
             p_data.columns = [c.replace(' ', '_') for c in p_data.columns]
             return p_data.sort_values('Date_Recorded')
         except Exception as e:
@@ -2667,33 +2519,22 @@ class HealthcareApp(QMainWindow):
             return None
 
     def plot_correlation_viz_bridge(self):
-        """
-        Plots correlation for the selected patient on the shared viz canvas.
-        Updated to perform a hard reset of the figure to clear previous heatmaps.
-        """
-        # 1. Validation to prevent crashes if data is missing
         p_data = self.get_viz_patient_data()
         if p_data is None or p_data.empty: 
             QMessageBox.warning(self, "No Data", "No records found for the selected Patient ID.")
             return
         
-        # 2. Extract column names from UI
         m1 = self.scatter_x_combo.currentText().replace(' ', '_')
         m2 = self.scatter_y_combo.currentText().replace(' ', '_')
         
-        # Ensure columns actually exist in the retrieved data
         if m1 not in p_data.columns or m2 not in p_data.columns:
             QMessageBox.warning(self, "Column Error", f"Metrics {m1} or {m2} not found in patient data.")
             return
 
         try:
-            # --- CRITICAL FIX FOR STUCK HEATMAPS ---
-            # Wipe the whole figure to remove leftover colorbars and overlapping axes
             self.viz_figure.clear()
-            # Re-create a fresh axis on the cleared figure
             self.viz_ax = self.viz_figure.add_subplot(111)
 
-            # 3. Use Seaborn regplot on the NEW axis
             sns.regplot(
                 x=m1, y=m2, data=p_data, 
                 ax=self.viz_ax, 
@@ -2702,51 +2543,35 @@ class HealthcareApp(QMainWindow):
                 line_kws={'color': 'red', 'lw': 2}
             )
             
-            # 4. Formatting
             self.viz_ax.set_title(f"Correlation: {m1.replace('_', ' ')} vs {m2.replace('_', ' ')} (Patient {self.viz_patient_id_input.text()})")
             self.viz_ax.set_xlabel(m1.replace('_', ' '))
             self.viz_ax.set_ylabel(m2.replace('_', ' '))
             self.viz_ax.grid(True, linestyle='--', alpha=0.5)
             
-            # 5. Non-blocking redraw
             self.viz_canvas.draw_idle() 
             
         except Exception as e:
             QMessageBox.critical(self, "Plotting Error", f"An error occurred while plotting: {str(e)}")
 
     def plot_timeseries_viz_bridge(self):
-        """
-        Plots historical trend for the selected patient on the shared viz canvas.
-        Includes a hard reset of the figure to clear previous heatmaps/colorbars.
-        Fixes date parsing error for timestamps.
-        """
-        # 1. Fetch patient-specific data
         p_data = self.get_viz_patient_data()
         if p_data is None or p_data.empty:
             QMessageBox.warning(self, "No Data", "No records found for this patient.")
             return
         
-        # 2. Get and clean the metric name
         metric = self.ts_column_combo.currentText().replace(' ', '_')
         
-        # 3. Validation: Ensure column exists
         if metric not in p_data.columns:
             QMessageBox.warning(self, "Column Error", f"Column '{metric}' not found in patient data.")
             return
 
         try:
-            # 4. Prepare Data: Convert dates and sort
-            # FIX: Added format='mixed' to handle "YYYY-MM-DD HH:MM:SS" correctly
             p_data['Date_Recorded'] = pd.to_datetime(p_data['Date_Recorded'], format='mixed')
             p_data = p_data.sort_values('Date_Recorded')
             
-            # --- CRITICAL FIX FOR STUCK HEATMAPS ---
-            # Wipe the whole figure (deletes heatmap colorbars)
             self.viz_figure.clear()
-            # Re-create the axis on the clean figure
             self.viz_ax = self.viz_figure.add_subplot(111)
 
-            # 5. Plotting
             self.viz_ax.plot(
                 p_data['Date_Recorded'], 
                 p_data[metric], 
@@ -2756,33 +2581,23 @@ class HealthcareApp(QMainWindow):
                 label=metric.replace('_', ' ')
             )
             
-            # 6. Formatting
             self.viz_ax.set_title(f"Historical Trend: {metric.replace('_', ' ')} (Patient {self.viz_patient_id_input.text()})")
             self.viz_ax.set_xlabel("Date Recorded")
             self.viz_ax.set_ylabel(metric.replace('_', ' '))
             self.viz_ax.grid(True, linestyle='--', alpha=0.5)
             self.viz_ax.legend()
             
-            # 7. Date Formatting
-            # This must be called on the FIGURE object
             self.viz_figure.autofmt_xdate()
             
-            # 8. Non-blocking redraw on the correct CANVAS object
             self.viz_canvas.draw_idle()
 
         except Exception as e:
             QMessageBox.critical(self, "Plotting Error", f"Failed to plot time series: {str(e)}")
 
     def process_medical_image_viz_refresh(self):
-        """
-        Handler for the 'Process Medical Image' button in the Viz Tab.
-        Ensures the local data is fresh and the display shows the most recent record.
-        """
-        # 1. Sync the app with the database to get latest processed results
         if self.db_manager:
             self.db_retrieve_data()
 
-        # 2. Extract the patient ID to focus on
         patient_id = self.viz_patient_id_input.text().strip()
         if not patient_id:
             patient_id = self.id_patient_input.text().strip()
@@ -2791,152 +2606,36 @@ class HealthcareApp(QMainWindow):
             self.viz_image_label.setText("Please enter a Patient ID to view latest images.")
             return
 
-        # 3. Trigger the visualization update logic
-        # This will now use the refreshed records to find the highest report_id
         self.update_viz_image()
         
         self.status_label.setText(f"Visualization refreshed for Patient {patient_id}.")
 
-    # def plot_scatter(self):
-    #     p_data = self.get_viz_patient_data()
-    #     if p_data is None: return
-        
-    #     x_col = self.scatter_x_combo.currentText()
-    #     y_col = self.scatter_y_combo.currentText()
-        
-    #     self.figure.clear()
-    #     ax = self.figure.add_subplot(111)
-    #     # Plot patient data specifically, hue by heart status
-    #     sns.scatterplot(data=p_data, x=x_col, y=y_col, hue='Heart_Disease_Status', ax=ax, s=100)
-    #     ax.set_title(f"Relationship: {x_col} vs {y_col} (Patient {p_data['patient_id'].iloc[0]})")
-    #     self.canvas.draw()
-
-    # def plot_time_series(self):
-    #     """Standardizes column names and fetches full DB history to fix empty plots."""
-    #     selected_id = self.analysis_patient_id.currentText().strip()
-    #     if not selected_id:
-    #         QMessageBox.warning(self, "Selection Required", "Please select a Patient ID.")
-    #         return
-
-    #     # 1. Fetch from DB using your DatabaseManager helper
-    #     working_df = self.db_manager.get_all_records_for_patient(selected_id)
-
-    #     if working_df is None or working_df.empty:
-    #         QMessageBox.warning(self, "No Data", f"No records found in DB for Patient {selected_id}")
-    #         return
-
-    #     # 2. STANDARDIZE COLUMN NAMES (The "Empty Plot" Fix)
-    #     # Convert all spaces to underscores to match the Database Schema
-    #     working_df.columns = [c.replace(' ', '_') for c in working_df.columns]
-        
-    #     # Also clean the metric name from the dropdown
-    #     metric_col = self.ts_column_dropdown.currentText().replace(' ', '_')
-
-    #     try:
-    #         # 3. Ensure Date is formatted for the X-axis
-    #         # In DB it is 'Date_Recorded'
-    #         working_df['Date_Recorded'] = pd.to_datetime(working_df['Date_Recorded'])
-            
-    #         # 4. Ensure Metric is numeric for the Y-axis
-    #         working_df[metric_col] = pd.to_numeric(working_df[metric_col], errors='coerce')
-            
-    #         # Drop empty rows and sort
-    #         working_df = working_df.dropna(subset=['Date_Recorded', metric_col])
-    #         working_df = working_df.sort_values('Date_Recorded')
-
-    #         if len(working_df) < 2:
-    #             QMessageBox.warning(self, "Insufficient Data", 
-    #                               f"Only {len(working_df)} valid record(s) found. Need 2 to draw a line.")
-    #             return
-
-    #         # 5. Clear and Plot
-    #         self.analysis_ax.clear()
-    #         self.analysis_ax.plot(
-    #             working_df['Date_Recorded'], 
-    #             working_df[metric_col], 
-    #             marker='o', linestyle='-', color='#2980B9', linewidth=2
-    #         )
-
-            
-
-    #         # 6. Formatting
-    #         self.analysis_ax.set_title(f"Historical Trend: {metric_col.replace('_', ' ')}", fontweight='bold')
-    #         self.analysis_ax.set_xlabel("Timeline")
-    #         self.analysis_ax.set_ylabel("Value")
-    #         self.analysis_ax.grid(True, alpha=0.3)
-            
-    #         # Rotate dates so they don't overlap
-    #         self.analysis_canvas.figure.autofmt_xdate()
-    #         self.analysis_canvas.draw()
-            
-    #         self.analysis_status_label.setText(f"Success: Plotted {len(working_df)} points for Patient {selected_id}")
-
-    #     except Exception as e:
-    #         QMessageBox.critical(self, "Plotting Error", f"Failed: {str(e)}")
-
-    # def plot_fft_viz(self):
-    #     p_data = self.get_viz_patient_data()
-    #     if p_data is None: return
-        
-    #     col = self.fft_column_combo.currentText()
-    #     try:
-    #         signal_str = str(p_data[col].iloc[-1]) # Use latest recorded signal
-    #         data = np.fromstring(signal_str, sep=',')
-    #         yf = np.fft.rfft(data)
-    #         xf = np.fft.rfftfreq(len(data))
-            
-    #         self.figure.clear()
-    #         ax = self.figure.add_subplot(111)
-    #         ax.plot(xf, np.abs(yf), color='red')
-    #         ax.set_title(f"Frequency Components (FFT): {col}")
-    #         self.canvas.draw()
-    #     except:
-    #         QMessageBox.critical(self, "Error", "Could not parse signal data for FFT.")
-
     def plot_heatmap(self):
-        """
-        Generates a correlation heatmap in the Data Visualization tab.
-        FIXED: Specifically excludes Patient ID and Report ID columns.
-        """
-        # 1. Validation: Ensure data exists
         if self.df is None or self.df.empty:
             QMessageBox.warning(self, "No Data", "Please load data first.")
             return
 
         try:
-            # 2. Select numerical columns
             numeric_df = self.df.select_dtypes(include=[np.number]).copy()
-
-            # --- CORE FIX: Exclude ID Columns ---
-            # We define the specific columns to ignore for this specific heatmap
             id_blacklist = [
                 'patient_id', 'report_id', 'Patient ID', 'Report ID', 
                 'Patient_ID', 'Report_ID', 'id', 'ID'
             ]
             
-            # Keep only columns NOT in the blacklist
             cols_to_keep = [c for c in numeric_df.columns if c not in id_blacklist]
             numeric_df = numeric_df[cols_to_keep]
-            # ------------------------------------
-
-            # 3. Clean data to avoid NumPy 'invalid value' warnings
             numeric_df = numeric_df.dropna(axis=1, how='all')
-            # Only keep columns with variance (avoid constant values that break correlation)
             numeric_df = numeric_df.loc[:, numeric_df.std() > 0]
 
             if numeric_df.empty:
                 QMessageBox.warning(self, "Calculation Error", "No valid numerical health data available.")
                 return
 
-            # 4. Calculate correlation matrix
             corr_matrix = numeric_df.corr()
 
-            # 5. Targeting the correct Figure and Axis
             self.viz_figure.clear()
             ax = self.viz_figure.add_subplot(111)
 
-            # 6. Plot using Seaborn
-            # Coolwarm is excellent for seeing positive vs negative correlations
             sns.heatmap(
                 corr_matrix, 
                 annot=True, 
@@ -2947,38 +2646,11 @@ class HealthcareApp(QMainWindow):
             )
             ax.set_title("Global Health Metrics Correlation HeatMap")
 
-            # 7. Update Canvas
             self.viz_figure.tight_layout()
             self.viz_canvas.draw_idle()
 
         except Exception as e:
             QMessageBox.critical(self, "Heatmap Error", f"An error occurred: {str(e)}")
-
-    # def process_patient_image_viz(self):
-    #     """Fetches patient image from DB, processes it, and displays in the label."""
-    #     p_id_str = self.viz_patient_id_input.text().strip()
-    #     if not p_id_str or not self.db_manager: return
-
-    #     # Query latest image BLOB
-    #     query = "SELECT Image_Data FROM patient_health_metrics WHERE patient_id = ? AND Image_Data IS NOT NULL ORDER BY Date_Recorded DESC LIMIT 1"
-    #     self.db_manager.cursor.execute(query, (int(p_id_str),))
-    #     res = self.db_manager.cursor.fetchone()
-
-    #     if res and res[0]:
-    #         nparr = np.frombuffer(res[0], np.uint8)
-    #         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            
-    #         # Side-by-side processing: Original | Edges
-    #         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    #         edges = cv2.Canny(gray, 100, 200)
-    #         edges_bgr = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
-            
-    #         combined = np.hstack((img, edges_bgr))
-    #         h, w, ch = combined.shape
-    #         qimg = QImage(combined.data, w, h, w * ch, QImage.Format_RGB888).rgbSwapped()
-    #         self.viz_image_label.setPixmap(QPixmap.fromImage(qimg).scaled(self.viz_image_label.width(), self.viz_image_label.height(), Qt.KeepAspectRatio))
-    #     else:
-    #         self.viz_image_label.setText("No medical image found for this patient.")
 
     def load_next_page(self):
         self.current_page += 1
