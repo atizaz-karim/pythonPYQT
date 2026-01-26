@@ -733,37 +733,39 @@ class HealthcareApp(QMainWindow):
                     
 
     def db_delete_record(self):
-        """Permanently deletes a record and handles non-existent IDs."""
-        if not self._check_db_manager(): return
-
+        """Deletes a patient and all their records, then refreshes the view."""
         patient_id_str = self.patient_id_input.text().strip()
-        if not patient_id_str.isdigit():
-            QMessageBox.warning(self, "Input Error", "Enter a valid Patient ID to delete.")
+        if not patient_id_str:
+            QMessageBox.warning(self, "Input Required", "Please enter a Patient ID to delete.")
             return
-        
-        patient_id = int(patient_id_str)
-        reply = QMessageBox.question(self, 'Confirm Deletion', f"Delete Patient ID {patient_id}?",
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        
-        if reply == QMessageBox.Yes:
+
+        # Confirmation step
+        confirm = QMessageBox.question(
+            self, "Confirm Delete", 
+            f"Are you sure you want to delete Patient ID {patient_id_str} and all associated records?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if confirm == QMessageBox.Yes:
             try:
-                # The DB manager now returns 1 for success or 0 for 'not found'
+                patient_id = int(patient_id_str)
+                # 1. Perform deletion in the database
                 rows_affected = self.db_manager.delete_patient_data(patient_id)
                 
                 if rows_affected > 0:
-                    # Success: Remove from local display and refresh
-                    if self.df is not None:
-                        self.df = self.df[self.df.iloc[:, 0].astype(str) != patient_id_str]
-                        self.populate_table(self.df)
+                    QMessageBox.information(self, "Deleted", f"Successfully deleted Patient {patient_id}.")
                     
-                    self.patient_id_input.clear()
-                    QMessageBox.information(self, "Patient ID", f"deleted {patient_id} sucessfully.")
+                    # --- FIX: REFRESH THE VIEW IMMEDIATELY ---
+                    self.patient_id_input.clear() # Clear the input box
+                    self.db_retrieve_data()       # This re-fetches data and updates the table
+                    # -----------------------------------------
                 else:
-                    # Error: The patient ID was not found in the database
-                    QMessageBox.warning(self, "Error", f"Patient ID {patient_id} does not exists.")
-                    
+                    QMessageBox.warning(self, "Not Found", f"No record found for Patient ID {patient_id}.")
+            
+            except ValueError:
+                QMessageBox.critical(self, "Error", "Invalid Patient ID format.")
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Deletion failed: {e}")
+                QMessageBox.critical(self, "Delete Error", f"An error occurred: {e}")
 
 # --- Panel 2: Analysis ---
     def create_analysis_panel(self):
@@ -1283,15 +1285,24 @@ class HealthcareApp(QMainWindow):
         self.signal_dropdown = QComboBox()
         self.signal_dropdown.setObjectName("BiomedicalSignalDropdown")
         
-        biomed_targets = ["ECG", "EEG"]
+        # --- FIXED LOGIC START ---
+        # We look for these keywords in your CSV headers
+        biomed_targets = ['ECG_SIGNAL', 'ECG SIGNAL', 'EEG_SIGNAL', 'EEG SIGNAL']
         biomed_options = []
-        if self.df is not None and not self.df.empty:
-            biomed_options = [col for col in self.df.columns if any(t in col.upper() for t in biomed_targets)]
         
+        if self.df is not None and not self.df.empty:
+            # Check every column in your CSV for a match
+            for col in self.df.columns:
+                if any(target in col.upper() for target in biomed_targets):
+                    biomed_options.append(col)
+        
+        # Fallback if no columns are found in CSV, so the dropdown isn't empty
         if not biomed_options:
-            biomed_options = biomed_targets
+            biomed_options = ["ECG_Signal", "EEG_Signal"]
             
         self.signal_dropdown.addItems(biomed_options)
+        # --- FIXED LOGIC END ---
+
         self.signal_dropdown.setMinimumWidth(200)
         signal_loading_layout.addWidget(self.signal_dropdown)
         
@@ -1324,7 +1335,7 @@ class HealthcareApp(QMainWindow):
         start_segment_layout = QVBoxLayout()
         start_segment_layout.addWidget(QLabel("Segment Start (Sample):"))
         self.segment_start_slider = QSlider(Qt.Horizontal)
-        self.segment_start_slider.setRange(0, 100)
+        self.segment_start_slider.setRange(0, 5000) # Increased range for real signals
         self.segment_start_slider.setValue(0)
         self.segment_start_label = QLabel("0")
         self.segment_start_slider.valueChanged.connect(lambda v: self.segment_start_label.setText(str(v)))
@@ -1336,9 +1347,9 @@ class HealthcareApp(QMainWindow):
         end_segment_layout = QVBoxLayout()
         end_segment_layout.addWidget(QLabel("Segment End (Sample):"))
         self.segment_end_slider = QSlider(Qt.Horizontal)
-        self.segment_end_slider.setRange(10, 200)
-        self.segment_end_slider.setValue(100)
-        self.segment_end_label = QLabel("100")
+        self.segment_end_slider.setRange(10, 5000) # Increased range for real signals
+        self.segment_end_slider.setValue(1000)
+        self.segment_end_label = QLabel("1000")
         self.segment_end_slider.valueChanged.connect(lambda v: self.segment_end_label.setText(str(v)))
         end_segment_layout.addWidget(self.segment_end_slider)
         end_segment_layout.addWidget(self.segment_end_label)
@@ -1364,11 +1375,9 @@ class HealthcareApp(QMainWindow):
         # --- Visualization Controls ---
         visualization_controls_group = QGroupBox("Visualization Controls")
         viz_controls_layout = QHBoxLayout(visualization_controls_group)
-
         viz_controls_layout.setSpacing(20)
         viz_controls_layout.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         
-        # 1. Frequency Range Section
         freq_label = QLabel("Frequency Range (Hz):")
         viz_controls_layout.addWidget(freq_label)
 
@@ -1384,7 +1393,6 @@ class HealthcareApp(QMainWindow):
         viz_controls_layout.addWidget(QLabel("Max:"))
         viz_controls_layout.addWidget(self.freq_max_input)
         
-        # 2. Buttons Section
         self.apply_zoom_btn = QPushButton("Apply Zoom")
         self.apply_zoom_btn.setObjectName("ApplyZoom") 
         self.apply_zoom_btn.clicked.connect(self.apply_fft_zoom)
@@ -1544,143 +1552,145 @@ class HealthcareApp(QMainWindow):
             return None
 
     def plot_raw_signal(self):
-        # 1. Check if global data exists
-        if self.df is None or self.df.empty:
-            QMessageBox.warning(self, "No Data", "Please load a dataset containing ECG/EEG data first.")
-            return
-
-        # 2. Get the selected Patient ID
+        """
+        Fetches and plots the raw ECG/EEG signal.
+        FIX: Queries the Database Manager directly to avoid pagination issues 
+             and establishes a handshake for the FFT function.
+        """
+        # 1. Get the selected Patient ID from the dropdown/input
         selected_patient_id = self.spectrum_patient_id.currentText().strip()
         if not selected_patient_id:
             QMessageBox.warning(self, "Selection Required", "Please select or enter a Patient ID first.")
             return
 
-        # 3. Get the signal column selection
+        # 2. Get the signal column selection (e.g., 'ECG_Signal')
         col = self.signal_dropdown.currentText()
         if not col:
             QMessageBox.warning(self, "Invalid Selection", "Please select a valid Biomedical Signal column.")
             return
 
         try:
-            # 4. Filter data for the SPECIFIC patient
-            patient_data = self.df[self.df['patient_id'].astype(str) == selected_patient_id]
+            # 3. Query the DATABASE directly instead of the paginated self.df
+            # This ensures all IDs (like 1, 12, etc.) are found regardless of the current table page.
+            patient_data = self.db_manager.get_all_records_for_patient(selected_patient_id)
             
-            if patient_data.empty:
-                QMessageBox.warning(self, "No Patient Found", f"No records found for Patient ID: {selected_patient_id}")
+            if patient_data is None or patient_data.empty:
+                QMessageBox.warning(self, "No Patient Found", f"No records found in database for Patient ID: {selected_patient_id}")
                 return
 
-            # Get the signal data from the most recent record
-            raw_signal_data = patient_data.iloc[-1][col]
+            # 4. Get the signal data from the most recent record
+            raw_signal_data = patient_data.iloc[-1].get(col)
 
-            # 5. Handle Signal Conversion (FIXED PARSING)
+            if raw_signal_data is None or str(raw_signal_data).lower() == 'nan':
+                QMessageBox.warning(self, "No Signal", f"The database record for Patient {selected_patient_id} has no data in column: {col}")
+                return
+
+            # 5. Handle Signal Conversion (Standardized for CSV-based strings)
             if isinstance(raw_signal_data, str):
-                # Strip brackets/quotes if they exist, then split by comma
-                clean_str = raw_signal_data.replace('[', '').replace(']', '').replace('"', '').replace("'", "")
+                # Remove any brackets, quotes, or whitespace before splitting
+                clean_str = raw_signal_data.replace('[', '').replace(']', '').replace('"', '').replace("'", "").strip()
+                if not clean_str:
+                    raise ValueError("Signal string is empty.")
+                # Convert comma-separated string to a numeric numpy array
                 signal = np.array([float(x) for x in clean_str.split(',') if x.strip()])
             else:
+                # If already numeric (from an array-like object)
                 signal = np.atleast_1d(raw_signal_data).astype(float)
 
             if len(signal) == 0:
-                QMessageBox.warning(self, "Empty Signal", f"The signal for patient {selected_patient_id} contains no data.")
+                QMessageBox.warning(self, "Empty Signal", f"The signal for patient {selected_patient_id} contains no data points.")
                 return
 
-            # 6. UI Plotting (FIXED SCALING)
+            # --- THE CRITICAL HANDSHAKE ---
+            # Store the signal globally for the plot_fft function to access
+            self.current_raw_signal = signal 
+
+            # 6. UI Plotting
             self.raw_signal_ax.clear()
             
-            # Use a thinner line (0.8) to make the wave look more detailed
-            self.raw_signal_ax.plot(signal, color='#27AE60', linewidth=0.8, label="Raw Signal")
+            # Use a thinner line (0.8) for clarity in high-frequency medical signals
+            self.raw_signal_ax.plot(signal, color='#27AE60', linewidth=0.8)
             
-            # IMPORTANT: Set the X-limit to the actual length of the data
-            # This prevents the "single line" compression issue
+            # Set the X-limit to match the data length so it fills the screen properly
             self.raw_signal_ax.set_xlim(0, len(signal))
             
             self.raw_signal_ax.set_title(f"Patient {selected_patient_id}: Raw {col} Signal", fontsize=12, fontweight='bold')
-            self.raw_signal_ax.set_xlabel("Samples (Time)", fontsize=10)
+            self.raw_signal_ax.set_xlabel("Sample Index", fontsize=10)
             self.raw_signal_ax.set_ylabel("Amplitude", fontsize=10)
             self.raw_signal_ax.grid(True, linestyle=':', alpha=0.6)
             
             self.raw_signal_canvas.figure.tight_layout()
             self.raw_signal_canvas.draw()
             
-            # 7. Update Sliders
+            # 7. Update Sliders based on the length of the newly loaded signal
             max_samples = len(signal)
             self.segment_start_slider.setRange(0, max_samples - 2)
             self.segment_end_slider.setRange(2, max_samples)
             
-            # Reset sliders to show a reasonable starting window (e.g., first 1000 samples)
-            default_end = min(1000, max_samples)
+            # Set default view to show a reasonable starting window
+            default_end = min(2000, max_samples)
             self.segment_start_slider.setValue(0)
             self.segment_end_slider.setValue(default_end)
             
+            # Update labels to show the current slider values
+            if hasattr(self, 'segment_start_label'):
+                self.segment_start_label.setText("0")
             if hasattr(self, 'segment_end_label'):
                 self.segment_end_label.setText(str(default_end))
 
         except Exception as e:
-            QMessageBox.critical(self, "Plotting Error", f"An error occurred: {str(e)}")
+            QMessageBox.critical(self, "Plotting Error", f"An error occurred while fetching signal: {str(e)}")
 
     def plot_fft(self):
-        """Computes FFT, Plots it, and saves a NEW record to History if requested."""
-        if self.df is None or self.df.empty:
-            QMessageBox.warning(self, "No Data", "Please load data before computing FFT.")
+        """
+        Computes and plots FFT. 
+        All manual zoom/limit logic has been removed to prevent blank graphs.
+        """
+        # 1. Check if signal was loaded
+        if not hasattr(self, 'current_raw_signal') or self.current_raw_signal is None:
+            QMessageBox.warning(self, "No Signal", "Please click 'Load Signal' first.")
             return
 
-        selected_patient_id = self.spectrum_patient_id.currentText().strip()
-        if not selected_patient_id:
-            QMessageBox.warning(self, "Selection Required", "Please select a Patient ID.")
-            return
-
-        col = self.signal_dropdown.currentText()
-        
         try:
-            # 1. Filter data for the SPECIFIC patient
-            patient_data = self.df[self.df['patient_id'].astype(str) == selected_patient_id]
-            if patient_data.empty:
-                QMessageBox.warning(self, "No Patient", f"No records found for Patient {selected_patient_id}")
+            # 2. Extract Segment from Sliders
+            start = self.segment_start_slider.value()
+            end = self.segment_end_slider.value()
+            signal_segment = self.current_raw_signal[start:end]
+
+            if len(signal_segment) < 10: 
+                QMessageBox.warning(self, "Range Error", "Segment too short.")
                 return
 
-            # 2. Get signal and convert to numeric array
-            raw_signal_data = patient_data.iloc[-1][col]
-            if isinstance(raw_signal_data, str):
-                clean_str = raw_signal_data.replace('[', '').replace(']', '').replace('"', '').replace("'", "")
-                signal = np.array([float(x) for x in clean_str.split(',') if x.strip()])
-            else:
-                signal = np.atleast_1d(raw_signal_data).astype(float)
-
-            # 3. Apply Segment logic from sliders
-            start_idx = self.segment_start_slider.value()
-            end_idx = self.segment_end_slider.value()
-            
-            start_idx = max(0, start_idx)
-            end_idx = min(len(signal), end_idx)
-            signal_segment = signal[start_idx:end_idx]
-
-            if len(signal_segment) < 2:
-                QMessageBox.warning(self, "Range Error", "Selected segment is too small.")
-                return
-
-            # 4. Compute actual FFT using data_analyzer
+            # 3. Compute FFT
             from data_analyzer import get_fft_analysis
             freq, fft_values = get_fft_analysis(pd.Series(signal_segment))
 
-            # 5. UI Plotting
+            if freq is None or fft_values is None:
+                return
+
+            # 4. Plotting with Absolute Auto-Scaling
             self.spectrum_ax.clear()
-            self.spectrum_ax.plot(freq, fft_values, color='#2E86C1', linewidth=1.2)
-            self.spectrum_ax.set_title(f"FFT Spectrum: Patient {selected_patient_id} ({col})", 
-                                      fontsize=11, fontweight='bold')
+            
+            # Plot the data
+            self.spectrum_ax.plot(freq, fft_values, color='#E74C3C', linewidth=1.2)
+            
+            # Remove all constraints: Let Matplotlib decide the limits based on the data
+            self.spectrum_ax.relim()
+            self.spectrum_ax.autoscale_view(tight=True)
+
+            # Aesthetics
+            self.spectrum_ax.set_title("FFT Power Spectrum", fontweight='bold')
             self.spectrum_ax.set_xlabel("Frequency (Hz)")
             self.spectrum_ax.set_ylabel("Magnitude")
             self.spectrum_ax.grid(True, linestyle='--', alpha=0.5)
-            self.spectrum_canvas.draw_idle() # Queue the draw
-            from PyQt5.QtWidgets import QApplication
-            QApplication.processEvents()
+
+            # 5. Force UI Refresh
+            self.spectrum_canvas.figure.tight_layout()
             self.spectrum_canvas.draw()
 
-            # 6. SAVE AS NEW HISTORY RECORD IF CHECKED
-            if hasattr(self, 'save_fft_radio') and self.save_fft_radio.isChecked():
-                self.save_fft_to_history(selected_patient_id, fft_values)
-
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"FFT Calculation failed: {str(e)}")
+            print(f"DEBUG: FFT Error - {str(e)}")
+            QMessageBox.critical(self, "FFT Error", f"Calculation failed: {str(e)}")
 
     def save_fft_to_history(self, patient_id, fft_values):
         """Converts FFT array to string and saves as a new record in the DB."""

@@ -12,8 +12,6 @@ class DatabaseManager:
         self.create_tables()
 
     def create_tables(self):
-        """Creates the relational tables and handles migrations for new columns."""
-        # 1. Table for unique patients
         create_patients_table = '''
         CREATE TABLE IF NOT EXISTS patients (
             patient_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,7 +19,6 @@ class DatabaseManager:
             Gender TEXT
         );
         '''
-        # 2. Table for health metrics
         create_health_reports_table = '''
         CREATE TABLE IF NOT EXISTS patient_health_metrics (
             report_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,6 +35,7 @@ class DatabaseManager:
             Heart_Disease_Status TEXT,
             ECG_Signal TEXT,
             ECG_FFT_Magnitude TEXT,
+            EEG_FFT_Magnitude TEXT,
             Correlation_Data TEXT,
             EEG_Signal TEXT,
             Date_Recorded TEXT,
@@ -48,7 +46,11 @@ class DatabaseManager:
         '''
         self.cursor.execute(create_patients_table)
         self.cursor.execute(create_health_reports_table)
-        # Migration: Add column if it doesn't exist in an old database
+        
+        # --- MIGRATION LOGIC ---
+        # This section ensures existing databases are updated without losing data.
+
+        # Migration: Original_Image_Data
         try:
             self.cursor.execute("SELECT Original_Image_Data FROM patient_health_metrics LIMIT 1")
         except sqlite3.OperationalError:
@@ -56,13 +58,21 @@ class DatabaseManager:
             self.cursor.execute("ALTER TABLE patient_health_metrics ADD COLUMN Original_Image_Data BLOB")
             self.conn.commit()
             
-        # --- MIGRATION LOGIC ---
-        # If the DB existed before we added Correlation_Data, ALTER the table
+        # Migration: Correlation_Data
         try:
             self.cursor.execute("SELECT Correlation_Data FROM patient_health_metrics LIMIT 1")
         except sqlite3.OperationalError:
             print("Migrating database: Adding Correlation_Data column...")
             self.cursor.execute("ALTER TABLE patient_health_metrics ADD COLUMN Correlation_Data TEXT")
+            self.conn.commit()
+
+        # Migration: EEG_FFT_Magnitude (NEW)
+        # Ensures existing DBs can now store EEG spectrum analysis results
+        try:
+            self.cursor.execute("SELECT EEG_FFT_Magnitude FROM patient_health_metrics LIMIT 1")
+        except sqlite3.OperationalError:
+            print("Migrating database: Adding EEG_FFT_Magnitude column...")
+            self.cursor.execute("ALTER TABLE patient_health_metrics ADD COLUMN EEG_FFT_Magnitude TEXT")
             self.conn.commit()
             
         self.conn.commit()
@@ -88,30 +98,47 @@ class DatabaseManager:
 
     def insert_patient_data(self, df_source):
         """Processes and inserts a DataFrame of patient data into the relational structure."""
+        
+        # 1. Comprehensive Mapping to handle various CSV header styles
         column_mapping = {
-            'Name': 'Name', 'Gender': 'Gender', 'ECG Signal': 'ECG_Signal',
-            'EEG Signal': 'EEG_Signal', 'Blood Pressure': 'Blood_Pressure',
-            'Cholesterol Level': 'Cholesterol_Level', 'Sleep Hours': 'Sleep_Hours',
-            'Triglyceride Level': 'Triglyceride_Level', 'Fasting Blood Sugar': 'Fasting_Blood_Sugar',
-            'CRP Level': 'CRP_Level', 'Homocysteine Level': 'Homocysteine_Level',
-            'Heart Disease Status': 'Heart_Disease_Status', 'Date Recorded': 'Date_Recorded'
+            'Name': 'Name',
+            'Age': 'Age',
+            'Gender': 'Gender',
+            'ECG Signal': 'ECG_Signal',
+            'ECG_Signal': 'ECG_Signal',
+            'EEG Signal': 'EEG_Signal',
+            'EEG_Signal': 'EEG_Signal',
+            'Blood Pressure': 'Blood_Pressure',
+            'Cholesterol Level': 'Cholesterol_Level',
+            'BMI': 'BMI',
+            'Sleep Hours': 'Sleep_Hours',
+            'Triglyceride Level': 'Triglyceride_Level',
+            'Fasting Blood Sugar': 'Fasting_Blood_Sugar',
+            'CRP Level': 'CRP_Level',
+            'Homocysteine Level': 'Homocysteine_Level',
+            'Heart Disease Status': 'Heart_Disease_Status',
+            'Date Recorded': 'Date_Recorded'
         }
 
         df = df_source.copy()
-        for space_name, underscore_name in column_mapping.items():
-            if space_name in df.columns:
-                df.rename(columns={space_name: underscore_name}, inplace=True)
+        
+        # 2. Advanced column cleanup (removes extra spaces and ensures correct naming)
+        df.columns = [col.strip() for col in df.columns]
+        for csv_col, db_col in column_mapping.items():
+            if csv_col in df.columns:
+                df.rename(columns={csv_col: db_col}, inplace=True)
 
         rows_inserted = 0
         for i, row in df.iterrows():
             try:
+                # 3. Patient logic
                 name = str(row.get('Name', '')).strip()
                 if not name or name.lower() == 'nan':
                     name = f"Patient_{i+1}"
                 
                 gender = row.get('Gender', 'Unknown')
 
-                # Handle relational patient lookup/creation
+                # Check if patient exists, if not create them
                 self.cursor.execute("SELECT patient_id FROM patients WHERE Name = ?", (name,))
                 result = self.cursor.fetchone()
                 if result:
@@ -120,6 +147,7 @@ class DatabaseManager:
                     self.cursor.execute("INSERT INTO patients (Name, Gender) VALUES (?, ?)", (name, gender))
                     patient_id = self.cursor.lastrowid
 
+                # 4. Extract data using the cleaned column names
                 metrics_data = {
                     'patient_id': patient_id,
                     'Age': row.get('Age'),
@@ -137,14 +165,20 @@ class DatabaseManager:
                     'Date_Recorded': row.get('Date_Recorded')
                 }
 
-                # Clean and Insert
-                metrics_data = {k: v for k, v in metrics_data.items() if v is not None and not (isinstance(v, float) and np.isnan(v))}
-                columns = ', '.join(metrics_data.keys())
-                placeholders = ', '.join(['?' for _ in metrics_data])
-                values = tuple(metrics_data.values())
-                
-                self.cursor.execute(f"INSERT INTO patient_health_metrics ({columns}) VALUES ({placeholders})", values)
-                rows_inserted += 1
+                # 5. Remove None/NaN values so SQLite doesn't crash
+                # We also ensure signal strings are treated as strings
+                cleaned_metrics = {}
+                for k, v in metrics_data.items():
+                    if v is not None and not (isinstance(v, float) and np.isnan(v)):
+                        cleaned_metrics[k] = str(v) if 'Signal' in k else v
+
+                if cleaned_metrics:
+                    columns = ', '.join(cleaned_metrics.keys())
+                    placeholders = ', '.join(['?' for _ in cleaned_metrics])
+                    values = tuple(cleaned_metrics.values())
+                    
+                    self.cursor.execute(f"INSERT INTO patient_health_metrics ({columns}) VALUES ({placeholders})", values)
+                    rows_inserted += 1
 
             except Exception as e:
                 print(f"Error inserting row {i}: {e}")
@@ -382,18 +416,24 @@ class DatabaseManager:
             print(f"Error fetching images for patient {patient_id}: {e}")
             return []
         
-    def save_new_fft_record(self, patient_id, fft_string):
-        """Creates a brand new record for the patient with only the FFT data."""
+    def save_new_fft_record(self, patient_id, fft_string, signal_type='ECG'):
+        """
+        Creates a new record for the patient with the computed FFT data.
+        Handles both ECG and EEG based on signal_type.
+        """
+        # Determine which column to use based on the signal type
+        column_name = "ECG_FFT_Magnitude" if signal_type == 'ECG' else "EEG_FFT_Magnitude"
+        
         try:
-            sql = """
-                INSERT INTO patient_health_metrics (patient_id, Date_Recorded, ECG_FFT_Magnitude)
+            sql = f"""
+                INSERT INTO patient_health_metrics (patient_id, Date_Recorded, {column_name})
                 VALUES (?, DATETIME('now'), ?)
             """
             self.cursor.execute(sql, (patient_id, fft_string))
             self.conn.commit()
             return True
         except Exception as e:
-            print(f"Database Insert Error: {e}")
+            print(f"Database FFT Insert Error ({signal_type}): {e}")
             return False
     
     def get_all_records_for_patient(self, patient_id):
